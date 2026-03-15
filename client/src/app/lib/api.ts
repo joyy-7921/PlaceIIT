@@ -127,7 +127,7 @@ export const cocoApi = {
         request("/coco/queue/add", { method: "POST", body: JSON.stringify(data) }),
     updateStudentStatus: (data: { queueId: string; status: string }) =>
         request("/coco/queue/status", { method: "PUT", body: JSON.stringify(data) }),
-    sendNotification: (data: { studentId: string; message: string }) =>
+    sendNotification: (data: { studentUserId: string; companyId?: string; message: string }) =>
         request("/coco/notify", { method: "POST", body: JSON.stringify(data) }),
     getPredefinedNotifications: () =>
         request("/coco/notifications/predefined"),
@@ -135,6 +135,8 @@ export const cocoApi = {
         request("/coco/panel", { method: "POST", body: JSON.stringify(data) }),
     addRound: (data: Record<string, unknown>) =>
         request("/coco/round", { method: "POST", body: JSON.stringify(data) }),
+    searchStudents: (query: string) =>
+        request(`/coco/students/search?q=${encodeURIComponent(query)}`),
 };
 
 /* ═══════════════════════════════════════════════════════════

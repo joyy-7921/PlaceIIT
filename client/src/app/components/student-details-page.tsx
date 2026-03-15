@@ -2,11 +2,11 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
-import { 
-  ArrowLeft, 
-  Mail, 
-  Phone, 
-  FileText, 
+import {
+  ArrowLeft,
+  Mail,
+  Phone,
+  FileText,
   GraduationCap,
   Building2,
   Calendar,
@@ -48,6 +48,7 @@ interface StudentDetailsPageProps {
   inInterview: boolean;
   interviewWith?: string;
   interviewVenue?: string;
+  queuedFor?: string;
   onBack: () => void;
 }
 
@@ -64,6 +65,7 @@ export function StudentDetailsPage({
   inInterview,
   interviewWith,
   interviewVenue,
+  queuedFor,
   onBack
 }: StudentDetailsPageProps) {
   // Mock data for shortlisted companies
@@ -162,8 +164,8 @@ export function StudentDetailsPage({
     <div className="space-y-8">
       {/* Header with Back Button */}
       <div className="flex items-center gap-4">
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           onClick={onBack}
           className="flex items-center gap-2"
         >
@@ -201,7 +203,7 @@ export function StudentDetailsPage({
                 <div className="font-semibold text-gray-900">{rollNo}</div>
               </div>
             </div>
-            
+
             <div className="flex items-start gap-3 bg-indigo-50 p-4 rounded-lg">
               <Building2 className="h-5 w-5 text-indigo-600 mt-0.5" />
               <div>
@@ -209,7 +211,7 @@ export function StudentDetailsPage({
                 <div className="font-semibold text-gray-900">{department}</div>
               </div>
             </div>
-            
+
             <div className="flex items-start gap-3 bg-indigo-50 p-4 rounded-lg">
               <GraduationCap className="h-5 w-5 text-indigo-600 mt-0.5" />
               <div>
@@ -227,7 +229,7 @@ export function StudentDetailsPage({
                 <div className="font-medium text-gray-900 break-all">{email}</div>
               </div>
             </div>
-            
+
             <div className="flex items-start gap-3 bg-gray-50 p-4 rounded-lg">
               <Phone className="h-5 w-5 text-indigo-600 mt-0.5" />
               <div className="flex-1">
@@ -235,7 +237,7 @@ export function StudentDetailsPage({
                 <div className="font-medium text-gray-900">{phone}</div>
               </div>
             </div>
-            
+
             <div className="flex items-start gap-3 bg-red-50 p-4 rounded-lg">
               <Phone className="h-5 w-5 text-red-600 mt-0.5" />
               <div className="flex-1">
@@ -243,15 +245,15 @@ export function StudentDetailsPage({
                 <div className="font-medium text-gray-900">{emergencyContact}</div>
               </div>
             </div>
-            
+
             <div className="flex items-start gap-3 bg-gray-50 p-4 rounded-lg">
               <FileText className="h-5 w-5 text-indigo-600 mt-0.5" />
               <div className="flex-1">
                 <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Resume</div>
-                <a 
-                  href={resumeUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
+                <a
+                  href={resumeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="font-medium text-indigo-600 hover:text-indigo-700 underline"
                 >
                   View Resume
@@ -287,7 +289,7 @@ export function StudentDetailsPage({
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -299,7 +301,7 @@ export function StudentDetailsPage({
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -311,7 +313,7 @@ export function StudentDetailsPage({
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -392,7 +394,7 @@ export function StudentDetailsPage({
                       <div className="md:col-span-1">
                         <div className="font-semibold text-gray-900 text-lg">{company.name}</div>
                       </div>
-                      
+
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                         <Calendar className="h-4 w-4" />
                         <div>
@@ -400,7 +402,7 @@ export function StudentDetailsPage({
                           <div className="font-medium text-gray-900">{company.day}</div>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                         <Clock className="h-4 w-4" />
                         <div>
@@ -408,7 +410,7 @@ export function StudentDetailsPage({
                           <div className="font-medium text-gray-900">{company.slot}</div>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                         <MapPin className="h-4 w-4" />
                         <div>
@@ -416,7 +418,7 @@ export function StudentDetailsPage({
                           <div className="font-medium text-gray-900">{company.venue}</div>
                         </div>
                       </div>
-                      
+
                       <div className="flex justify-end">
                         {getStatusBadge(company.status)}
                       </div>

@@ -71,13 +71,20 @@ const updateStudentStatus = async (req, res) => {
   }
 };
 
-// @desc    Send predefined notification to student
+// @desc    Send predefined or custom notification to student
 // @route   POST /api/coco/notify
 const sendNotification = async (req, res) => {
   try {
-    const { studentUserId, companyId, messageIndex } = req.body;
-    const message = PREDEFINED_NOTIFICATIONS[messageIndex];
-    if (!message) return res.status(400).json({ message: "Invalid notification index" });
+    const { studentUserId, companyId, messageIndex, message: customMessage } = req.body;
+    let message = customMessage;
+
+    if (messageIndex !== undefined && PREDEFINED_NOTIFICATIONS[messageIndex]) {
+      message = PREDEFINED_NOTIFICATIONS[messageIndex];
+    }
+
+    if (!message) {
+      return res.status(400).json({ message: "Invalid message provided" });
+    }
 
     await notificationService.sendNotification({
       recipientId: studentUserId,
@@ -151,8 +158,27 @@ const getPredefinedNotifications = async (req, res) => {
   res.json(PREDEFINED_NOTIFICATIONS);
 };
 
+// @desc    Search all students
+// @route   GET /api/coco/students/search
+const searchAllStudents = async (req, res) => {
+  try {
+    const { q } = req.query;
+    const students = await Student.find({
+      $or: [{ name: new RegExp(q, "i") }, { rollNumber: new RegExp(q, "i") }],
+    }).limit(20);
+
+    const { withQueueStatus } = require("../utils/student.helper");
+    const augmentedStudents = await withQueueStatus(students);
+
+    res.json(augmentedStudents);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getAssignedCompany, getShortlistedStudents, addStudentToQueue,
   updateStudentStatus, sendNotification, toggleWalkIn,
   addPanel, getRounds, addRound, getPredefinedNotifications,
+  searchAllStudents,
 };

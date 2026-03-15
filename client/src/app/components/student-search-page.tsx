@@ -3,10 +3,10 @@ import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Search, Phone, Mail, FileText, Clock, Eye, Loader2 } from "lucide-react";
-import { adminApi } from "@/app/lib/api";
 
 interface Student {
   id: string;
+  userId: string;
   name: string;
   rollNo: string;
   email: string;
@@ -18,13 +18,15 @@ interface Student {
   inInterview: boolean;
   interviewWith?: string;
   interviewVenue?: string;
+  queuedFor?: string;
 }
 
 interface StudentSearchPageProps {
   onStudentClick: (student: Student) => void;
+  fetchApi: (query: string) => Promise<any>;
 }
 
-export function StudentSearchPage({ onStudentClick }: StudentSearchPageProps) {
+export function StudentSearchPage({ onStudentClick, fetchApi }: StudentSearchPageProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,25 +34,27 @@ export function StudentSearchPage({ onStudentClick }: StudentSearchPageProps) {
   const [hasSearched, setHasSearched] = useState(false);
 
   const normalizeStudent = (raw: any): Student => ({
-    id: raw._id ?? raw.id ?? "",
-    name: raw.name ?? "—",
-    rollNo: raw.rollNumber ?? raw.rollNo ?? "—",
-    email: raw.email ?? raw.user?.email ?? "—",
-    phone: raw.contact ?? raw.phone ?? "—",
-    emergencyContact: raw.emergencyContact?.phone ?? raw.emergencyContact ?? "—",
-    department: raw.branch ?? raw.department ?? "—",
+    id: raw._id,
+    userId: raw.userId,
+    name: raw.name,
+    rollNo: raw.rollNumber,
+    email: raw.email ?? "",
+    phone: raw.contact ?? "",
+    emergencyContact: raw.emergencyContact?.phone ?? "",
+    department: raw.branch ?? "Unknown",
     cgpa: raw.cgpa ?? 0,
     resumeUrl: raw.resume ?? raw.resumeUrl ?? "",
     inInterview: raw.inInterview ?? false,
     interviewWith: raw.interviewWith ?? undefined,
     interviewVenue: raw.interviewVenue ?? undefined,
+    queuedFor: raw.queuedFor ?? undefined,
   });
 
   const fetchStudents = useCallback(async (q: string) => {
     setLoading(true);
     setError(null);
     try {
-      const data: any = await adminApi.searchStudents(q);
+      const data: any = await fetchApi(q);
       const list = Array.isArray(data) ? data : data.students ?? [];
       setStudents(list.map(normalizeStudent));
       setHasSearched(true);
@@ -60,7 +64,7 @@ export function StudentSearchPage({ onStudentClick }: StudentSearchPageProps) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchApi]);
 
   // Load all on mount
   useEffect(() => {
@@ -145,6 +149,10 @@ export function StudentSearchPage({ onStudentClick }: StudentSearchPageProps) {
                         <span className="px-3 py-1 bg-yellow-100 text-yellow-800 text-xs font-semibold rounded-full border border-yellow-300">
                           In Interview
                         </span>
+                      ) : student.queuedFor ? (
+                        <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full border border-blue-300">
+                          Queued
+                        </span>
                       ) : (
                         <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full border border-green-300">
                           Available
@@ -205,6 +213,17 @@ export function StudentSearchPage({ onStudentClick }: StudentSearchPageProps) {
                         <div className="text-xs text-yellow-700 font-semibold uppercase tracking-wide mb-0.5">Interview Status</div>
                         <span className="text-sm text-gray-900 font-medium">
                           Interviewing with {student.interviewWith} ({student.interviewVenue})
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {student.queuedFor && !student.inInterview && (
+                    <div className="flex items-center gap-3 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                      <Clock className="h-5 w-5 text-blue-700" />
+                      <div>
+                        <div className="text-xs text-blue-700 font-semibold uppercase tracking-wide mb-0.5">Queue Status</div>
+                        <span className="text-sm text-gray-900 font-medium">
+                          Waiting in queue for {student.queuedFor}
                         </span>
                       </div>
                     </div>

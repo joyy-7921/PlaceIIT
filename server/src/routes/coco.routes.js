@@ -4,6 +4,7 @@ const {
   getAssignedCompany, getShortlistedStudents, addStudentToQueue,
   updateStudentStatus, sendNotification, toggleWalkIn,
   addPanel, getRounds, addRound, getPredefinedNotifications,
+  searchAllStudents,
 } = require("../controllers/coco.controller");
 const { protect } = require("../middlewares/auth.middleware");
 const { authorize } = require("../middlewares/role.middleware");
@@ -20,5 +21,6 @@ router.post("/notify", sendNotification);
 router.get("/notifications/predefined", getPredefinedNotifications);
 router.post("/panel", addPanel);
 router.post("/round", addRound);
+router.get("/students/search", searchAllStudents);
 
 module.exports = router;

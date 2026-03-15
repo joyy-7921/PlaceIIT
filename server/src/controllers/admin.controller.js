@@ -68,7 +68,11 @@ const searchStudents = async (req, res) => {
     const students = await Student.find({
       $or: [{ name: new RegExp(q, "i") }, { rollNumber: new RegExp(q, "i") }],
     }).limit(20);
-    res.json(students);
+
+    const { withQueueStatus } = require("../utils/student.helper");
+    const augmentedStudents = await withQueueStatus(students);
+
+    res.json(augmentedStudents);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

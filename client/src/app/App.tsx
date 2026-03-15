@@ -30,6 +30,7 @@ import { StudentContactRoute } from "@/app/routes/student/contact-route";
 import { CoCoHomeRoute } from "@/app/routes/coco/home-route";
 import { CoCoCompaniesRoute } from "@/app/routes/coco/companies-route";
 import { CoCoStudentsRoute } from "@/app/routes/coco/students-route";
+import { CoCoStudentDetailsRoute } from "@/app/routes/coco/student-details-route";
 import { CoCoRoundTrackingRoute } from "@/app/routes/coco/round-tracking-route";
 import { CoCoProfileRoute } from "@/app/routes/coco/profile-route";
 import { CoCoNotificationsRoute } from "@/app/routes/coco/notifications-route";
@@ -89,6 +90,7 @@ function App() {
             <Route index element={<CoCoHomeRoute />} />
             <Route path="companies" element={<CoCoCompaniesRoute />} />
             <Route path="students" element={<CoCoStudentsRoute />} />
+            <Route path="students/:id" element={<CoCoStudentDetailsRoute />} />
             <Route path="round-tracking" element={<CoCoRoundTrackingRoute />} />
             <Route path="profile" element={<CoCoProfileRoute />} />
             <Route path="notifications" element={<CoCoNotificationsRoute />} />
