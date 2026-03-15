@@ -2,7 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
-import { Search, Phone, Mail, FileText, Clock, Eye, Loader2 } from "lucide-react";
+import { Search, Phone, Mail, FileText, Clock, Eye, Loader2, UserPlus } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/app/components/ui/dialog";
+import { toast } from "sonner";
+import { adminApi } from "@/app/lib/api";
+import { ROLES } from "@/app/utils/constants";
 
 interface Student {
   id: string;
@@ -32,6 +36,15 @@ export function StudentSearchPage({ onStudentClick, fetchApi }: StudentSearchPag
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    rollNumber: "",
+    email: "",
+    password: "",
+    instituteId: "",
+  });
 
   const normalizeStudent = (raw: any): Student => ({
     id: raw._id,
@@ -84,12 +97,82 @@ export function StudentSearchPage({ onStudentClick, fetchApi }: StudentSearchPag
       s.rollNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
+  const handleAddStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await adminApi.registerUser({
+        ...formData,
+        role: "student"
+      });
+      toast.success("Student added successfully!");
+      setIsAddModalOpen(false);
+      setFormData({ name: "", rollNumber: "", email: "", password: "", instituteId: "" });
+      fetchStudents(searchQuery);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add student");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Student Search</h1>
-        <p className="text-gray-500">Search and view student information</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Student Search</h1>
+          <p className="text-gray-500">Search and view student information</p>
+        </div>
+        <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-green-600 hover:bg-green-700 flex items-center gap-2">
+              <UserPlus className="h-4 w-4" />
+              Add Student
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New Student</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleAddStudent} className="space-y-4 pt-4">
+              <Input
+                placeholder="Full Name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+              />
+              <Input
+                placeholder="Roll Number"
+                value={formData.rollNumber}
+                onChange={(e) => setFormData({ ...formData, rollNumber: e.target.value })}
+                required
+              />
+              <Input
+                placeholder="Institute ID"
+                value={formData.instituteId}
+                onChange={(e) => setFormData({ ...formData, instituteId: e.target.value })}
+                required
+              />
+              <Input
+                type="email"
+                placeholder="Email Address"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                required
+              />
+              <Input
+                type="password"
+                placeholder="Initial Password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                required
+              />
+              <Button type="submit" className="w-full bg-indigo-600" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Create Student Account
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Search Bar */}

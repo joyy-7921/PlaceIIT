@@ -138,6 +138,7 @@ const uploadCompanyExcel = async (req, res) => {
 const uploadShortlistExcel = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    const { companyId } = req.body;
     const upload = await ExcelUpload.create({
       uploadedBy: req.user.id,
       fileName: req.file.originalname,
@@ -220,9 +221,69 @@ const shortlistStudents = async (req, res) => {
   }
 };
 
+// @desc    Get shortlisted students for a company
+// @route   GET /api/admin/companies/:id/students
+const getShortlistedStudents = async (req, res) => {
+  try {
+    const company = await Company.findById(req.params.id)
+      .populate({
+        path: "shortlistedStudents",
+        populate: { path: "userId", select: "email" }
+      });
+    if (!company) return res.status(404).json({ message: "Company not found" });
+
+    // Format students with basic info
+    const students = company.shortlistedStudents.map(s => ({
+      _id: s._id,
+      name: s.name,
+      rollNumber: s.rollNumber,
+      email: s.userId?.email || "",
+      branch: s.branch || "N/A",
+      cgpa: s.cgpa || "N/A",
+      phone: s.contact || "N/A"
+    }));
+
+    res.json(students);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+// @desc    Auto allocate CoCos to companies
+// @route   POST /api/admin/auto-allocate-cocos
+const autoAllocateCocos = async (req, res) => {
+  try {
+    const [cocos, companies] = await Promise.all([
+      Coordinator.find(),
+      Company.find({ isActive: true })
+    ]);
+
+    if (cocos.length === 0 || companies.length === 0) {
+      return res.status(400).json({ message: "Need both CoCos and companies to allocate" });
+    }
+
+    // Shuffle for random distribution
+    const shuffledCocos = [...cocos].sort(() => Math.random() - 0.5);
+    let cocoIndex = 0;
+
+    const results = [];
+    for (const company of companies) {
+      if (cocoIndex >= shuffledCocos.length) cocoIndex = 0;
+      const coco = shuffledCocos[cocoIndex++];
+      
+      await Coordinator.findByIdAndUpdate(coco._id, { $addToSet: { assignedCompanies: company._id } });
+      await Company.findByIdAndUpdate(company._id, { $addToSet: { assignedCocos: coco._id } });
+      results.push({ company: company.name, coco: coco.name });
+    }
+
+    res.json({ message: "Auto-allocation completed", results });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getStats, getCompanies, addCompany, updateCompany,
   searchStudents, getCocos, assignCoco, removeCoco,
   uploadCompanyExcel, uploadShortlistExcel, uploadCocoRequirementsExcel, getUploadStatus,
-  shortlistStudents,
+  shortlistStudents, getShortlistedStudents, autoAllocateCocos
 };

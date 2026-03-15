@@ -9,6 +9,9 @@ import {
 import { Label } from "@/app/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
 import { ArrowLeft, UserPlus, Users, Clock, CheckCircle, AlertCircle, Upload, Loader2 } from "lucide-react";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/app/components/ui/select";
 import { cocoApi } from "@/app/lib/api";
 import { useSocket } from "@/app/socket-context";
 import { toast } from "sonner";
@@ -42,6 +45,11 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
   const [totalRounds, setTotalRounds] = useState(3);
   const [studentsByRound, setStudentsByRound] = useState<Record<number, Student[]>>({});
   const [panelsByRound, setPanelsByRound] = useState<Record<number, Panel[]>>({});
+  const [roundIds, setRoundIds] = useState<Record<number, string>>({});
+  const [selectedRoundForAdd, setSelectedRoundForAdd] = useState(1);
+  const [studentSearchForAdd, setStudentSearchForAdd] = useState("");
+  const [addingStudent, setAddingStudent] = useState(false);
+  const [foundStudents, setFoundStudents] = useState<any[]>([]);
 
   const normalizeStudent = (raw: any, i: number, round: number): Student => {
     const statusRaw: string = raw.status ?? raw.queueEntry?.status ?? "in-queue";
@@ -81,6 +89,7 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
         const roundsData: any = await cocoApi.getRounds(cid).catch(() => null);
         const byRound: Record<number, Student[]> = {};
         const panelsRoundMap: Record<number, Panel[]> = {};
+        const rIds: Record<number, string> = {};
         
         for (let r = 1; r <= rounds; r++) {
           byRound[r] = [];
@@ -97,8 +106,10 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
             if (rd.panels && Array.isArray(rd.panels)) {
               panelsRoundMap[rn] = rd.panels;
             }
+            if (rd._id) rIds[rn] = rd._id;
           });
         }
+        setRoundIds(rIds);
 
         // Fallback: use shortlisted students for round 1 if rounds API didn't return data
         if (Object.values(byRound).every((arr) => arr.length === 0)) {
@@ -134,6 +145,39 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
     };
   }, [socket, companyId, fetchData]);
   // ─────────────────────────────────────────────────────────────────────────
+
+  const handleSearchStudent = async () => {
+    if (!studentSearchForAdd) return;
+    try {
+      const data: any = await cocoApi.searchStudents(studentSearchForAdd);
+      setFoundStudents(Array.isArray(data) ? data : data.students ?? []);
+    } catch {
+      toast.error("Failed to search students");
+    }
+  };
+
+  const handleAddStudentToRound = async (studentId: string) => {
+    const roundId = roundIds[selectedRoundForAdd];
+    if (!roundId) {
+      toast.error("Round ID not found. Please create the round first.");
+      return;
+    }
+    setAddingStudent(true);
+    try {
+      await cocoApi.addStudentToRound({
+        studentId,
+        companyId,
+        roundId
+      });
+      toast.success("Student added to round!");
+      setIsAddStudentOpen(false);
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to add student to round");
+    } finally {
+      setAddingStudent(false);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -262,13 +306,54 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
               <TabsContent value="manual" className="space-y-4 pt-4">
                 <div className="space-y-2">
                   <Label>Round</Label>
-                  <Input type="number" min="1" max={totalRounds} defaultValue="1" />
+                  <Select 
+                    value={String(selectedRoundForAdd)} 
+                    onValueChange={(v) => setSelectedRoundForAdd(parseInt(v))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Round" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: totalRounds }, (_, i) => i + 1).map((r) => (
+                        <SelectItem key={r} value={String(r)}>Round {r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Student Name or Roll Number</Label>
-                  <Input placeholder="Enter name or roll number" />
+                  <Label>Student Search</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="Name or Roll Number" 
+                      value={studentSearchForAdd}
+                      onChange={(e) => setStudentSearchForAdd(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSearchStudent()}
+                    />
+                    <Button onClick={handleSearchStudent} type="button" size="sm">Search</Button>
+                  </div>
                 </div>
-                <Button className="w-full bg-green-600 hover:bg-green-700">Add Student</Button>
+                
+                {foundStudents.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto space-y-2 border rounded p-2">
+                    {foundStudents.map((s) => (
+                      <div key={s._id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded">
+                        <div>
+                          <div className="text-sm font-medium">{s.name}</div>
+                          <div className="text-xs text-gray-500">{s.rollNumber}</div>
+                        </div>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="text-indigo-600"
+                          onClick={() => handleAddStudentToRound(s._id)}
+                          disabled={addingStudent}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </TabsContent>
               <TabsContent value="excel" className="space-y-4 pt-4">
                 <div className="space-y-2">
