@@ -105,7 +105,7 @@ NODE_ENV=development
 ### 3. Seed test data (optional but recommended)
 
 ```bash
-bun src/seed.js
+    bun src/seed.js
 ```
 
 This creates three test accounts:
@@ -139,6 +139,7 @@ curl http://localhost:5000/api/health
 | Option | Command / Config | Best For |
 |--------|-----------------|----------|
 | **Local install** | `mongod --dbpath /data/db` | Development |
+| **Manual Binary (Linux)** | Download from mongodb.org, extract, and run `bin/mongod --dbpath data/db` | Local without sudo/Docker |
 | **Docker** | `docker run -d --name placeiit-mongo -p 27017:27017 -v placeiit_mongo_data:/data/db mongo:7` | Dev / Staging |
 | **MongoDB Atlas** | Set `MONGO_URI=mongodb+srv://...` in `.env` | Production |
 
