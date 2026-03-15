@@ -9,7 +9,7 @@ const { ROLES } = require("../utils/constants");
 // @access  Public
 const login = async (req, res) => {
   try {
-    const { instituteId, password } = req.body;
+    const { instituteId, password, role } = req.body;
 
     if (!instituteId || !password)
       return res.status(400).json({ message: "Institute ID and password are required" });
@@ -17,6 +17,14 @@ const login = async (req, res) => {
     const user = await User.findOne({ instituteId });
     if (!user || !(await user.comparePassword(password)))
       return res.status(401).json({ message: "Invalid credentials" });
+
+    // Enforce role-based access on backend
+    if (role && user.role !== role) {
+      const roleName = user.role.charAt(0).toUpperCase() + user.role.slice(1);
+      return res.status(401).json({ 
+        message: `Access denied. These credentials belong to a ${roleName} account.` 
+      });
+    }
 
     if (!user.isActive)
       return res.status(403).json({ message: "Account is deactivated" });

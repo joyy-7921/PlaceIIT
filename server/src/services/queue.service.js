@@ -19,9 +19,16 @@ const joinQueue = async (studentId, companyId, isWalkIn = false) => {
       throw new Error("Student is not shortlisted for this company");
   }
 
-  // Check if already in queue
+  // Check if already in ANY active queue (single queue constraint)
+  const activeEntry = await Queue.findOne({ 
+    studentId, 
+    status: { $in: [STUDENT_STATUS.IN_QUEUE, STUDENT_STATUS.IN_INTERVIEW] } 
+  });
+  if (activeEntry) throw new Error("You are already in an active queue. Please complete or leave it before joining another.");
+
+  // Check if already in THIS company queue
   const existing = await Queue.findOne({ companyId, studentId });
-  if (existing) throw new Error("Student is already in the queue");
+  if (existing) throw new Error("Student is already in this queue");
 
   // Get next position
   const lastEntry = await Queue.findOne({ companyId, status: STUDENT_STATUS.IN_QUEUE })
@@ -50,7 +57,7 @@ const joinQueue = async (studentId, companyId, isWalkIn = false) => {
 };
 
 const updateStatus = async (studentId, companyId, status, roundId = null, panelId = null) => {
-  const entry = await Queue.findOne({ companyId, studentId });
+  const entry = await Queue.findOne({ companyId, studentId }).populate("studentId");
   if (!entry) throw new Error("Queue entry not found");
 
   entry.status = status;
@@ -66,8 +73,8 @@ const updateStatus = async (studentId, companyId, status, roundId = null, panelI
     getIO().to(`company:${companyId}`).emit(SOCKET_EVENTS.STATUS_UPDATED, {
       companyId, studentId, status,
     });
-    // Notify the student personally
-    getIO().to(`user:${entry.studentId}`).emit(SOCKET_EVENTS.STATUS_UPDATED, {
+    // Notify the student personally - use userId for consistency with client room name
+    getIO().to(`user:${entry.studentId.userId}`).emit(SOCKET_EVENTS.STATUS_UPDATED, {
       companyId, status,
     });
   } catch (_) {}

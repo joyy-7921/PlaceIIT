@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, RequireAuth } from "@/app/auth-context";
+import { AuthProvider, RequireAuth, useAuth } from "@/app/auth-context";
+import { SocketProvider } from "@/app/socket-context";
 
 // Layouts
 import { APCLayout } from "@/app/layouts/apc-layout";
@@ -35,9 +36,10 @@ import { CoCoRoundTrackingRoute } from "@/app/routes/coco/round-tracking-route";
 import { CoCoProfileRoute } from "@/app/routes/coco/profile-route";
 import { CoCoNotificationsRoute } from "@/app/routes/coco/notifications-route";
 
-function App() {
+function AppRoutes() {
+  const { userId } = useAuth();
   return (
-    <AuthProvider>
+    <SocketProvider userId={userId}>
       <BrowserRouter>
         <Routes>
           {/* Login */}
@@ -100,6 +102,14 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
+    </SocketProvider>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppRoutes />
     </AuthProvider>
   );
 }

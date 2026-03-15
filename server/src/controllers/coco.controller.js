@@ -28,9 +28,7 @@ const getShortlistedStudents = async (req, res) => {
     const company = await Company.findById(req.params.companyId)
       .populate({
         path: "shortlistedStudents",
-        match: search
-          ? { $or: [{ name: new RegExp(search, "i") }, { rollNumber: new RegExp(search, "i") }] }
-          : {},
+        populate: { path: "userId", select: "email" }
       });
     if (!company) return res.status(404).json({ message: "Company not found" });
 
@@ -121,22 +119,82 @@ const addPanel = async (req, res) => {
   try {
     const { companyId, roundId, panelName, interviewers, venue } = req.body;
     const panel = await Panel.create({ companyId, roundId, panelName, interviewers, venue });
-    await InterviewRound.findByIdAndUpdate(roundId, { $push: { panels: panel._id } });
+    if (roundId) {
+      await InterviewRound.findByIdAndUpdate(roundId, { $push: { panels: panel._id } });
+    }
     res.status(201).json(panel);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
+// @desc    Get all panels for a company
+// @route   GET /api/coco/company/:companyId/panels
+const getPanels = async (req, res) => {
+  try {
+    const panels = await Panel.find({ companyId: req.params.companyId });
+    res.json(panels);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // @desc    Get rounds for a company
-// @route   GET /api/coco/company/:companyId/rounds
 const getRounds = async (req, res) => {
   try {
     const rounds = await InterviewRound.find({ companyId: req.params.companyId })
       .populate("panels");
-    res.json(rounds);
+    
+    // For each round, find students associated with it via Queue status
+    const augmentedRounds = await Promise.all(rounds.map(async (round) => {
+      const queueEntries = await Queue.find({ 
+        companyId: req.params.companyId,
+        roundId: round._id 
+      }).populate({
+        path: "studentId",
+        populate: { path: "userId", select: "email" }
+      });
+
+      return {
+        ...round.toObject(),
+        students: queueEntries.map(qe => ({
+          ...qe.studentId.toObject(),
+          status: qe.status,
+          queueEntry: qe
+        }))
+      };
+    }));
+
+    res.json(augmentedRounds);
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Add a student to a round
+// @route   POST /api/coco/round/add-student
+const addStudentToRound = async (req, res) => {
+  try {
+    const { studentId, companyId, roundId } = req.body;
+    
+    // Find or create queue entry
+    let queueEntry = await Queue.findOne({ studentId, companyId });
+    
+    if (queueEntry) {
+      queueEntry.roundId = roundId;
+      await queueEntry.save();
+    } else {
+      queueEntry = await Queue.create({
+        studentId,
+        companyId,
+        roundId,
+        status: "in-queue"
+      });
+    }
+
+    res.json(queueEntry);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 };
 
@@ -179,6 +237,6 @@ const searchAllStudents = async (req, res) => {
 module.exports = {
   getAssignedCompany, getShortlistedStudents, addStudentToQueue,
   updateStudentStatus, sendNotification, toggleWalkIn,
-  addPanel, getRounds, addRound, getPredefinedNotifications,
-  searchAllStudents,
+  addPanel, getPanels, getRounds, addRound, getPredefinedNotifications,
+  searchAllStudents, addStudentToRound
 };

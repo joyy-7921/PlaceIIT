@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { adminApi } from "@/app/lib/api";
+import { toast } from "sonner";
+import { useSocket } from "@/app/socket-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
@@ -57,59 +60,58 @@ export function CompanyDetailsPage({
   shortlistedCount,
   onBack
 }: CompanyDetailsPageProps) {
-  // Mock data for shortlisted students
-  const [students, setStudents] = useState<Student[]>([
-    {
-      id: "1",
-      rollNumber: "21CS001",
-      name: "Aarav Sharma",
-      email: "aarav.sharma@student.iit.ac.in",
-      phone: "+91 98765 43210",
-      branch: "Computer Science",
-      cgpa: 8.9,
-      status: "Pending"
-    },
-    {
-      id: "2",
-      rollNumber: "21CS015",
-      name: "Priya Patel",
-      email: "priya.patel@student.iit.ac.in",
-      phone: "+91 98765 43211",
-      branch: "Computer Science",
-      cgpa: 9.1,
-      status: "Selected"
-    },
-    {
-      id: "3",
-      rollNumber: "21EC023",
-      name: "Vikram Singh",
-      email: "vikram.singh@student.iit.ac.in",
-      phone: "+91 98765 43212",
-      branch: "Electronics",
-      cgpa: 8.7,
-      status: "Pending"
-    },
-    {
-      id: "4",
-      rollNumber: "21ME042",
-      name: "Ananya Reddy",
-      email: "ananya.reddy@student.iit.ac.in",
-      phone: "+91 98765 43213",
-      branch: "Mechanical",
-      cgpa: 8.8,
-      status: "Rejected"
-    },
-    {
-      id: "5",
-      rollNumber: "21CS089",
-      name: "Rohan Kumar",
-      email: "rohan.kumar@student.iit.ac.in",
-      phone: "+91 98765 43214",
-      branch: "Computer Science",
-      cgpa: 9.3,
-      status: "Selected"
+  const { socket } = useSocket();
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchStudents = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await adminApi.getShortlistedStudents(companyId);
+      // The API returns an array of students. Map them to match the UI component's interface
+      const mappedStudents = Array.isArray(data) ? data.map((s: any) => ({
+        id: s._id || s.id,
+        rollNumber: s.rollNumber || s.rollNo,
+        name: s.name,
+        email: s.email,
+        phone: s.phone || "N/A",
+        branch: s.branch || "N/A",
+        cgpa: s.cgpa || "N/A",
+        status: s.status || "Pending" // Default status as not all backend objects return a specific status here
+      })) : [];
+      setStudents(mappedStudents);
+    } catch (error) {
+      toast.error("Failed to load shortlisted students");
+    } finally {
+      setLoading(false);
     }
-  ]);
+  }, [companyId]);
+
+  useEffect(() => {
+    fetchStudents();
+  }, [fetchStudents]);
+
+  // Socket listeners for real-time updates
+  useEffect(() => {
+    if (!socket || !companyId) return;
+
+    socket.emit("join:company", companyId);
+
+    const handleUpdate = () => {
+      fetchStudents();
+      toast.info("Company data updated.");
+    };
+
+    socket.on("status:updated", handleUpdate);
+    socket.on("queue:updated", handleUpdate);
+    socket.on("shortlist:updated", handleUpdate);
+
+    return () => {
+      socket.off("status:updated", handleUpdate);
+      socket.off("queue:updated", handleUpdate);
+      socket.off("shortlist:updated", handleUpdate);
+    };
+  }, [socket, companyId, fetchStudents]);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -372,7 +374,13 @@ export function CompanyDetailsPage({
       <div>
         <h2 className="text-xl font-bold text-gray-800 mb-4">Shortlisted Students ({filteredStudents.length})</h2>
         <div className="space-y-3">
-          {filteredStudents.length === 0 ? (
+          {loading ? (
+             <Card>
+               <CardContent className="py-8 text-center text-gray-500">
+                 Loading students...
+               </CardContent>
+             </Card>
+          ) : filteredStudents.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-gray-500">
                 No students found matching your filters.

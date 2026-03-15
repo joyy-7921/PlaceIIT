@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Bell, CheckCircle, AlertCircle, Info, Building2, Clock, Search, Loader2 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { cocoApi } from "@/app/lib/api";
+import { useSocket } from "@/app/socket-context";
 
 interface Notification {
   id: string;
@@ -18,6 +19,7 @@ interface Notification {
 }
 
 export function CoCoNotificationsPage() {
+  const { socket } = useSocket();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -48,6 +50,18 @@ export function CoCoNotificationsPage() {
   }, []);
 
   useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
+
+  // ── Real-time ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotif = (raw: any) => {
+      const notif = normalizeNotif(raw);
+      setNotifications((prev) => [notif, ...prev]);
+    };
+    socket.on("notification:sent", handleNewNotif);
+    return () => { socket.off("notification:sent", handleNewNotif); };
+  }, [socket]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   const getNotificationIcon = (type: string) => {
     switch (type) {

@@ -151,14 +151,15 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
     event.target.value = "";
   };
 
-  const handleShortlistExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleShortlistExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>, companyId: string) => {
     const file = event.target.files?.[0];
     if (!file) return;
     const formData = new FormData();
     formData.append("file", file);
+    if (companyId) formData.append("companyId", companyId);
     try {
       await adminApi.uploadShortlistExcel(formData);
-      toast.success("Shortlist Upload successful");
+      toast.success("Shortlist upload successful — students will appear shortly");
       await fetchCompanies();
     } catch (err: any) {
       toast.error(err.message ?? "Upload failed");
@@ -168,18 +169,24 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
 
   const handleAddStudentsManually = async () => {
     if (!selectedCompanyId || !manualStudentList) return;
-    // This would need a custom endpoint; for now show a toast and update count optimistically
     const rollNumbers = manualStudentList.split("\n").map((s) => s.trim()).filter(Boolean);
-    toast.info(`Manual shortlist for ${rollNumbers.length} students — upload via Excel for server sync`);
-    setCompanies((prev) =>
-      prev.map((c) =>
-        c.id === selectedCompanyId
-          ? { ...c, shortlistedCount: c.shortlistedCount + rollNumbers.length }
-          : c
-      )
-    );
-    setManualStudentList("");
-    setIsAddStudentsOpen(false);
+    if (rollNumbers.length === 0) return;
+    setSaving(true);
+    try {
+      const res: any = await adminApi.shortlistStudents(selectedCompanyId, rollNumbers);
+      const count = res.shortlisted?.length ?? rollNumbers.length;
+      toast.success(`${count} student(s) shortlisted successfully!`);
+      if (res.notFound?.length > 0) {
+        toast.warning(`Roll numbers not found: ${res.notFound.join(", ")}`);
+      }
+      setManualStudentList("");
+      setIsAddStudentsOpen(false);
+      await fetchCompanies();
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to shortlist students");
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -392,7 +399,7 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
                       id={`student-excel-${company.id}`}
                       type="file"
                       accept=".xlsx,.xls,.csv"
-                      onChange={handleShortlistExcelUpload}
+                      onChange={(e) => handleShortlistExcelUpload(e, company.id)}
                       className="hidden"
                     />
                     <Button

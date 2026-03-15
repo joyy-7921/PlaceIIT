@@ -127,9 +127,13 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
     if (!newCoCoName || !newCoCoEmail) return;
     setSaving(true);
     try {
-      // Register user + coco via auth register
-      await (adminApi as any).registerUser?.({ name: newCoCoName, email: newCoCoEmail, phone: newCoCoPhone, role: "coco" })
-        .catch(() => null); // ignore if endpoint not available
+      await adminApi.registerUser({ 
+        name: newCoCoName, 
+        email: newCoCoEmail, 
+        instituteId: newCoCoEmail.split('@')[0], // fallback instituteId
+        password: "password123", // default password
+        role: "coco" 
+      });
       toast.success(`CoCo ${newCoCoName} added`);
       setNewCoCoName("");
       setNewCoCoEmail("");
@@ -175,40 +179,17 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
     }
   };
 
-  const handleRandomAllocation = () => {
-    const companySlots: { [key: string]: Company[] } = {};
-    companies.forEach((company) => {
-      const slotKey = `${company.day}-${company.slot}`;
-      if (!companySlots[slotKey]) companySlots[slotKey] = [];
-      companySlots[slotKey].push(company);
-    });
-
-    const newAssignments: CoCoAssignment[] = [];
-    const cocoAssignmentCounts = new Map<string, number>();
-    cocos.forEach((coco) => cocoAssignmentCounts.set(coco.id, 0));
-
-    Object.values(companySlots).forEach((slotCompanies) => {
-      slotCompanies.forEach((company) => {
-        let minCoco = cocos[0];
-        let minCount = cocoAssignmentCounts.get(minCoco.id) || 0;
-        cocos.forEach((coco) => {
-          const count = cocoAssignmentCounts.get(coco.id) || 0;
-          if (count < minCount) { minCoco = coco; minCount = count; }
-        });
-        newAssignments.push({ cocoId: minCoco.id, companyId: company.id });
-        cocoAssignmentCounts.set(minCoco.id, minCount + 1);
-      });
-    });
-
-    setAssignments(newAssignments);
-
-    // Persist to server
-    newAssignments.forEach(async (a) => {
-      try {
-        await adminApi.assignCoco({ cocoId: a.cocoId, companyId: a.companyId });
-      } catch { }
-    });
-    toast.success("Auto-allocation applied");
+  const handleRandomAllocation = async () => {
+    setLoading(true);
+    try {
+      await adminApi.autoAllocateCocos();
+      toast.success("Auto-allocation completed successfully");
+      await fetchAll();
+    } catch (err: any) {
+      toast.error(err.message ?? "Auto-allocation failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getCoCoAssignments = (cocoId: string) =>

@@ -21,7 +21,7 @@ interface AuthState {
     userId: string;
     userName: string;
     token: string | null;
-    login: (instituteId: string, password: string) => Promise<{ success: boolean; error?: string }>;
+    login: (instituteId: string, password: string, role?: UserRole) => Promise<{ success: boolean; error?: string }>;
     logout: () => void;
     /** legacy mock login for testing without server */
     mockLogin: (role: UserRole, id: string, name: string) => void;
@@ -72,9 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
-    const login = async (instituteId: string, password: string) => {
+    const login = async (instituteId: string, password: string, requestedRole?: UserRole) => {
         try {
-            const res = await authApi.login(instituteId, password);
+            const serverRole = requestedRole ? clientRoleToServer(requestedRole) : undefined;
+            const res = await authApi.login(instituteId, password, serverRole);
             setToken(res.token);
             setTokenState(res.token);
             const role = serverRoleToClient(res.user.role);

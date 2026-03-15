@@ -53,7 +53,7 @@ const processCompanyExcel = async (uploadId, filePath) => {
 /**
  * Expected columns: rollNumber, companyName, priorityOrder
  */
-const processShortlistExcel = async (uploadId, filePath) => {
+const processShortlistExcel = async (uploadId, filePath, companyId = null) => {
   try {
     await ExcelUpload.findByIdAndUpdate(uploadId, { status: "processing" });
     const wb = XLSX.readFile(filePath);
@@ -66,9 +66,15 @@ const processShortlistExcel = async (uploadId, filePath) => {
     for (const row of rows) {
       try {
         const student = await Student.findOne({ rollNumber: String(row.rollNumber) });
-        const company = await Company.findOne({ name: row.companyName });
+        let company;
+        if (companyId) {
+          company = await Company.findById(companyId);
+        } else if (row.companyName) {
+          company = await Company.findOne({ name: row.companyName });
+        }
+        
         if (!student) throw new Error(`Student ${row.rollNumber} not found`);
-        if (!company) throw new Error(`Company ${row.companyName} not found`);
+        if (!company) throw new Error(`Company not found (ID or name missing)`);
 
         await Student.findByIdAndUpdate(student._id, {
           $addToSet: { shortlistedCompanies: company._id },

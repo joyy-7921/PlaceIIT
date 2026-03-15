@@ -12,6 +12,7 @@ import {
   Send, RotateCw, Clock, CircleDot, MapPin, XCircle, UserCheck, Loader2,
 } from "lucide-react";
 import { cocoApi } from "@/app/lib/api";
+import { useSocket } from "@/app/socket-context";
 import { toast } from "sonner";
 
 interface Student {
@@ -24,6 +25,7 @@ interface Student {
   round: number;
   locationStatus: "in-queue" | "in-interview" | "no-show" | "completed-day";
   currentCompany?: string;
+  userId: string;
 }
 
 interface Panel {
@@ -41,10 +43,12 @@ interface CoCoHomePageProps {
 }
 
 export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps) {
+  const { socket } = useSocket();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRound, setSelectedRound] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isAddPanelOpen, setIsAddPanelOpen] = useState(false);
+  const [addingPanel, setAddingPanel] = useState(false);
   const [isWalkinActive, setIsWalkinActive] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -84,6 +88,7 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
       round: raw.round ?? raw.currentRound ?? 1,
       locationStatus: (statusMap[statusRaw] ?? "in-queue") as Student["locationStatus"],
       currentCompany: raw.companyName ?? companyName,
+      userId: raw.userId?._id ?? raw.userId ?? "",
     };
   };
 
@@ -114,27 +119,17 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
           const sList = Array.isArray(studentsData) ? studentsData : studentsData.students ?? [];
           setStudents(sList.map(normalizeStudent));
           
-          // Fetch panels/rounds
+          // Fetch panels directly
           try {
-            const roundsData: any = await cocoApi.getRounds(cid).catch(() => null);
-            if (roundsData) {
-              const roundsList = Array.isArray(roundsData) ? roundsData : roundsData.rounds ?? [];
-              const allPanels: Panel[] = [];
-              roundsList.forEach((rd: any) => {
-                if (rd.panels && Array.isArray(rd.panels)) {
-                  rd.panels.forEach((p: any) => {
-                    allPanels.push({
-                      id: p._id || p.id,
-                      name: p.panelName,
-                      members: p.interviewers || [],
-                      room: p.venue || companyObj.venue || "TBA",
-                      currentRound: rd.roundNumber || 1,
-                    });
-                  });
-                }
-              });
-              setPanels(allPanels);
-            }
+            const panelsData: any = await cocoApi.getPanels(cid).catch(() => []);
+            const pList = Array.isArray(panelsData) ? panelsData : panelsData.panels ?? [];
+            setPanels(pList.map((p: any) => ({
+              id: p._id || p.id,
+              name: p.panelName,
+              members: p.interviewers || [],
+              room: p.venue || companyObj.venue || "TBA",
+              currentRound: p.roundId?.roundNumber || companyObj.currentRound || 1,
+            })));
           } catch (e) {
             console.error("Failed to fetch panels", e);
           }
@@ -148,6 +143,28 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
   }, [companyName]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // ── Real-time updates ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!socket || !company.id) return;
+
+    // Join company room to receive queue events
+    socket.emit("join:company", company.id);
+
+    const handleQueueUpdate = () => fetchData();
+    const handleStatusUpdate = () => fetchData();
+
+    socket.on("queue:updated", handleQueueUpdate);
+    socket.on("status:updated", handleStatusUpdate);
+    socket.on("walkin:updated", handleQueueUpdate);
+
+    return () => {
+      socket.off("queue:updated", handleQueueUpdate);
+      socket.off("status:updated", handleStatusUpdate);
+      socket.off("walkin:updated", handleQueueUpdate);
+    };
+  }, [socket, company.id, fetchData]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   const filteredStudents = students.filter((student) => {
     const matchesSearch =
@@ -167,18 +184,29 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
       prev.map((s) => (s.id === studentId ? { ...s, status: newStatus, locationStatus: newStatus as any } : s))
     );
     try {
-      await cocoApi.updateStudentStatus({ queueId: studentId, status: newStatus });
+      await cocoApi.updateStudentStatus({ studentId, companyId: company.id, status: newStatus });
     } catch {
       toast.error("Failed to update status");
+      fetchData(); // revert optimistic update
     }
   };
 
   const handleSendNotification = async (studentId: string, type: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student || !student.userId) {
+      toast.error("Student user information not found");
+      return;
+    }
+    
     try {
       const msg = type === "come"
         ? `Please proceed to ${company.venue} for your ${company.name} interview.`
         : `Update regarding your ${company.name} interview.`;
-      await cocoApi.sendNotification({ studentId, message: msg });
+      await cocoApi.sendNotification({ 
+        studentUserId: student.userId, 
+        companyId: company.id, 
+        message: msg 
+      });
       toast.success("Notification sent!");
     } catch {
       toast.error("Failed to send notification");
@@ -190,7 +218,7 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
     setIsWalkinActive(newState);
     try {
       if (company.id) {
-        await cocoApi.toggleWalkIn(company.id, { walkInOpen: newState });
+        await cocoApi.toggleWalkIn(company.id, { enabled: newState });
       }
       toast.success(newState ? "Walk-in activated" : "Walk-in deactivated");
     } catch {
@@ -201,12 +229,13 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
 
   const handleAddPanel = async () => {
     if (!panelName || !panelRoom) return;
+    setAddingPanel(true);
     try {
       await cocoApi.addPanel({
         companyId: company.id,
-        name: panelName,
-        room: panelRoom,
-        members: panelMembers.split(",").map((m) => m.trim()).filter(Boolean),
+        panelName: panelName,
+        venue: panelRoom,
+        interviewers: panelMembers.split(",").map((m) => m.trim()).filter(Boolean),
       });
       toast.success("Panel added!");
       setPanelName("");
@@ -216,6 +245,8 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
       await fetchData();
     } catch (err: any) {
       toast.error(err.message ?? "Failed to add panel");
+    } finally {
+      setAddingPanel(false);
     }
   };
 
@@ -325,7 +356,18 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
                   <Input placeholder="Panel Name" value={panelName} onChange={(e) => setPanelName(e.target.value)} />
                   <Input placeholder="Room Number" value={panelRoom} onChange={(e) => setPanelRoom(e.target.value)} />
                   <Input placeholder="Panel Members (comma separated)" value={panelMembers} onChange={(e) => setPanelMembers(e.target.value)} />
-                  <Button className="w-full bg-green-600 hover:bg-green-700" onClick={handleAddPanel}>Create Panel</Button>
+                  <Button 
+                    className="w-full bg-green-600 hover:bg-green-700" 
+                    onClick={handleAddPanel}
+                    disabled={addingPanel}
+                  >
+                    {addingPanel ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : "Create Panel"}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>

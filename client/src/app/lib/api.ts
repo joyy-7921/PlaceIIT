@@ -76,10 +76,10 @@ export interface LoginResponse {
 }
 
 export const authApi = {
-    login: (instituteId: string, password: string) =>
+    login: (instituteId: string, password: string, role?: string) =>
         request<LoginResponse>("/auth/login", {
             method: "POST",
-            body: JSON.stringify({ instituteId, password }),
+            body: JSON.stringify({ instituteId, password, role }),
         }),
 
     getMe: () => request<{ _id: string; instituteId: string; role: string; email: string }>("/auth/me"),
@@ -121,11 +121,13 @@ export const cocoApi = {
         request(`/coco/company/${companyId}/students`),
     getRounds: (companyId: string) =>
         request(`/coco/company/${companyId}/rounds`),
-    toggleWalkIn: (companyId: string, data: { walkInOpen: boolean }) =>
+    getPanels: (companyId: string) =>
+        request(`/coco/company/${companyId}/panels`),
+    toggleWalkIn: (companyId: string, data: { enabled: boolean }) =>
         request(`/coco/company/${companyId}/walkin`, { method: "PUT", body: JSON.stringify(data) }),
     addStudentToQueue: (data: { companyId: string; studentId: string }) =>
         request("/coco/queue/add", { method: "POST", body: JSON.stringify(data) }),
-    updateStudentStatus: (data: { queueId: string; status: string }) =>
+    updateStudentStatus: (data: { studentId: string; companyId: string; status: string }) =>
         request("/coco/queue/status", { method: "PUT", body: JSON.stringify(data) }),
     sendNotification: (data: { studentUserId: string; companyId?: string; message: string }) =>
         request("/coco/notify", { method: "POST", body: JSON.stringify(data) }),
@@ -137,6 +139,8 @@ export const cocoApi = {
         request("/coco/round", { method: "POST", body: JSON.stringify(data) }),
     searchStudents: (query: string) =>
         request(`/coco/students/search?q=${encodeURIComponent(query)}`),
+    addStudentToRound: (data: { studentId: string; companyId: string; roundId: string }) =>
+        request("/coco/round/add-student", { method: "POST", body: JSON.stringify(data) }),
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -163,6 +167,14 @@ export const adminApi = {
     uploadCocoRequirementsExcel: (formData: FormData) =>
         uploadRequest("/admin/upload/coordinator-requirements", formData),
     getUploadStatus: (id: string) => request(`/admin/upload/${id}`),
+    getShortlistedStudents: (companyId: string) =>
+        request(`/admin/companies/${companyId}/students`),
+    shortlistStudents: (companyId: string, rollNumbers: string[]) =>
+        request("/admin/students/shortlist", { method: "POST", body: JSON.stringify({ companyId, rollNumbers }) }),
+    registerUser: (data: Record<string, unknown>) =>
+        request("/auth/register", { method: "POST", body: JSON.stringify(data) }),
+    autoAllocateCocos: () =>
+        request("/admin/auto-allocate-cocos", { method: "POST" }),
 };
 
 /* ═══════════════════════════════════════════════════════════

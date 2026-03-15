@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Bell, CheckCircle, AlertCircle, Info, Building2, Clock, Search, Loader2 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { studentApi } from "@/app/lib/api";
+import { useSocket } from "@/app/socket-context";
 import { toast } from "sonner";
 
 interface Notification {
@@ -19,6 +20,7 @@ interface Notification {
 }
 
 export function StudentNotificationsPage() {
+  const { socket } = useSocket();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -48,6 +50,19 @@ export function StudentNotificationsPage() {
   }, []);
 
   useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
+
+  // ── Real-time new notifications ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotif = (raw: any) => {
+      const notif = normalizeNotif(raw);
+      setNotifications((prev) => [notif, ...prev]);
+      toast.info(notif.message || "You have a new notification.");
+    };
+    socket.on("notification:sent", handleNewNotif);
+    return () => { socket.off("notification:sent", handleNewNotif); };
+  }, [socket]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   const handleMarkRead = async (id: string) => {
     try {

@@ -18,6 +18,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { adminApi } from "@/app/lib/api";
+import { useSocket } from "@/app/socket-context";
 
 interface APCHomePageProps {
   userName: string;
@@ -40,6 +41,7 @@ interface ScheduleItem {
 }
 
 export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
+  const { socket } = useSocket();
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [loadingSchedule, setLoadingSchedule] = useState(true);
 
@@ -65,6 +67,18 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
   }, []);
 
   useEffect(() => { fetchSchedule(); }, [fetchSchedule]);
+
+  // Live schedule refresh
+  useEffect(() => {
+    if (!socket) return;
+    const refresh = () => fetchSchedule();
+    socket.on("walkin:updated", refresh);
+    socket.on("queue:updated", refresh);
+    return () => {
+      socket.off("walkin:updated", refresh);
+      socket.off("queue:updated", refresh);
+    };
+  }, [socket, fetchSchedule]);
 
   const placementCount = stats.placements ?? 0;
 

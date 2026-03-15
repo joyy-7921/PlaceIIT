@@ -6,6 +6,7 @@ import { Badge } from "@/app/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 import { Search, Building2, MapPin, Clock, Users, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { studentApi } from "@/app/lib/api";
+import { useSocket } from "@/app/socket-context";
 import { toast } from "sonner";
 
 interface Company {
@@ -35,6 +36,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function StudentHomePage() {
+  const { socket } = useSocket();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSlot, setSelectedSlot] = useState("all");
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -91,6 +93,43 @@ export function StudentHomePage() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // ── Real-time updates ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleStatusUpdate = ({ companyId }: { companyId?: string }) => {
+      fetchData();
+      toast.info("Your interview status was updated.");
+      // Also join the specific company room if we know it
+      if (companyId) socket.emit("join:company", companyId);
+    };
+
+    const handleQueueUpdate = ({ companyId }: { companyId?: string }) => {
+      fetchData();
+      if (companyId) socket.emit("join:company", companyId);
+    };
+
+    socket.on("status:updated", handleStatusUpdate);
+    socket.on("queue:updated", handleQueueUpdate);
+    socket.on("walkin:updated", handleQueueUpdate);
+
+    return () => {
+      socket.off("status:updated", handleStatusUpdate);
+      socket.off("queue:updated", handleQueueUpdate);
+      socket.off("walkin:updated", handleQueueUpdate);
+    };
+  }, [socket, fetchData]);
+
+  // Join company rooms once companies are loaded
+  useEffect(() => {
+    if (!socket) return;
+    const inQueueCompanies = companies.filter((c) =>
+      c.status === "in-queue" || (c.status as any) === "in_queue"
+    );
+    inQueueCompanies.forEach((c) => socket.emit("join:company", c.id));
+  }, [socket, companies]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   const currentDay = companies.length > 0
     ? [...new Set(companies.map((c) => c.day))][0]
