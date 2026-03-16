@@ -269,7 +269,7 @@ const autoAllocateCocos = async (req, res) => {
     for (const company of companies) {
       if (cocoIndex >= shuffledCocos.length) cocoIndex = 0;
       const coco = shuffledCocos[cocoIndex++];
-      
+
       await Coordinator.findByIdAndUpdate(coco._id, { $addToSet: { assignedCompanies: company._id } });
       await Company.findByIdAndUpdate(company._id, { $addToSet: { assignedCocos: coco._id } });
       results.push({ company: company.name, coco: coco.name });
@@ -281,9 +281,49 @@ const autoAllocateCocos = async (req, res) => {
   }
 };
 
+// @desc    Get CoCo scheduling conflicts (same day+slot)
+// @route   GET /api/admin/coco-conflicts
+const getCocoConflicts = async (req, res) => {
+  try {
+    const cocos = await Coordinator.find()
+      .populate("userId", "email")
+      .populate("assignedCompanies", "name day slot venue");
+
+    const conflicts = [];
+    for (const coco of cocos) {
+      const companies = coco.assignedCompanies || [];
+      // Check every pair of assigned companies for same day+slot
+      for (let i = 0; i < companies.length; i++) {
+        for (let j = i + 1; j < companies.length; j++) {
+          const a = companies[i];
+          const b = companies[j];
+          if (a.day === b.day && a.slot === b.slot) {
+            conflicts.push({
+              coco: {
+                id: coco._id,
+                name: coco.name,
+                rollNumber: coco.rollNumber,
+                contact: coco.contact,
+                email: coco.userId?.email || "",
+              },
+              company1: { id: a._id, name: a.name, day: a.day, slot: a.slot, venue: a.venue },
+              company2: { id: b._id, name: b.name, day: b.day, slot: b.slot, venue: b.venue },
+              slot: `Day ${a.day} - ${a.slot}`,
+            });
+          }
+        }
+      }
+    }
+
+    res.json({ conflicts, total: conflicts.length });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getStats, getCompanies, addCompany, updateCompany,
   searchStudents, getCocos, assignCoco, removeCoco,
   uploadCompanyExcel, uploadShortlistExcel, uploadCocoRequirementsExcel, getUploadStatus,
-  shortlistStudents, getShortlistedStudents, autoAllocateCocos
+  shortlistStudents, getShortlistedStudents, autoAllocateCocos, getCocoConflicts
 };

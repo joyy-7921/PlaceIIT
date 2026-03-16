@@ -1,10 +1,13 @@
 const express = require("express");
 const router = express.Router();
+const multer = require("multer");
+const upload = multer({ dest: "uploads/" });
 const {
   getAssignedCompany, getShortlistedStudents, addStudentToQueue,
   updateStudentStatus, sendNotification, toggleWalkIn,
   addPanel, getPanels, getRounds, addRound, getPredefinedNotifications,
-  searchAllStudents, addStudentToRound,
+  searchAllStudents, addStudentToRound, uploadStudentsToRound,
+  getCocoNotifications, markNotifRead,
 } = require("../controllers/coco.controller");
 const { protect } = require("../middlewares/auth.middleware");
 const { authorize } = require("../middlewares/role.middleware");
@@ -20,9 +23,12 @@ router.post("/queue/add", addStudentToQueue);
 router.put("/queue/status", updateStudentStatus);
 router.post("/notify", sendNotification);
 router.get("/notifications/predefined", getPredefinedNotifications);
+router.get("/notifications", getCocoNotifications);
+router.put("/notifications/:id/read", markNotifRead);
 router.post("/panel", addPanel);
 router.post("/round", addRound);
 router.post("/round/add-student", addStudentToRound);
+router.post("/round/upload-students", upload.single("file"), uploadStudentsToRound);
 router.get("/students/search", searchAllStudents);
 
 module.exports = router;

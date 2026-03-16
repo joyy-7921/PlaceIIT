@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
@@ -50,6 +50,9 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
   const [studentSearchForAdd, setStudentSearchForAdd] = useState("");
   const [addingStudent, setAddingStudent] = useState(false);
   const [foundStudents, setFoundStudents] = useState<any[]>([]);
+  const [uploadingExcel, setUploadingExcel] = useState(false);
+  const [excelRound, setExcelRound] = useState(1);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const normalizeStudent = (raw: any, i: number, round: number): Student => {
     const statusRaw: string = raw.status ?? raw.queueEntry?.status ?? "in-queue";
@@ -90,7 +93,7 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
         const byRound: Record<number, Student[]> = {};
         const panelsRoundMap: Record<number, Panel[]> = {};
         const rIds: Record<number, string> = {};
-        
+
         for (let r = 1; r <= rounds; r++) {
           byRound[r] = [];
           panelsRoundMap[r] = [];
@@ -102,7 +105,7 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
             const rn = rd.roundNumber ?? rd.round ?? 1;
             const studs = rd.students ?? rd.shortlistedStudents ?? [];
             byRound[rn] = studs.map((s: any, i: number) => normalizeStudent(s, i, rn));
-            
+
             if (rd.panels && Array.isArray(rd.panels)) {
               panelsRoundMap[rn] = rd.panels;
             }
@@ -157,25 +160,49 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
   };
 
   const handleAddStudentToRound = async (studentId: string) => {
-    const roundId = roundIds[selectedRoundForAdd];
-    if (!roundId) {
-      toast.error("Round ID not found. Please create the round first.");
-      return;
-    }
     setAddingStudent(true);
     try {
+      // Use roundNumber-based approach which auto-creates the round on the server
       await cocoApi.addStudentToRound({
         studentId,
         companyId,
-        roundId
+        roundNumber: selectedRoundForAdd,
+        ...(roundIds[selectedRoundForAdd] ? { roundId: roundIds[selectedRoundForAdd] } : {}),
       });
       toast.success("Student added to round!");
       setIsAddStudentOpen(false);
+      setFoundStudents([]);
+      setStudentSearchForAdd("");
       await fetchData();
     } catch (err: any) {
       toast.error(err.message ?? "Failed to add student to round");
     } finally {
       setAddingStudent(false);
+    }
+  };
+
+  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingExcel(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("companyId", companyId);
+      formData.append("roundNumber", String(excelRound));
+      const result: any = await cocoApi.uploadRoundExcel(formData);
+      toast.success(result.message || "Students uploaded!");
+      if (result.notFound?.length > 0) {
+        toast.warning(`Not found: ${result.notFound.join(", ")}`);
+      }
+      setIsAddStudentOpen(false);
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to upload Excel");
+    } finally {
+      setUploadingExcel(false);
+      // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -208,7 +235,7 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
   const renderRoundColumn = (round: number) => {
     const students = studentsByRound[round] || [];
     const panels = panelsByRound[round] || [];
-    
+
     const inQueue = students.filter((s) => s.status === "in-queue");
     const yetToInterview = students.filter((s) => s.status === "yet-to-interview");
     const completed = students.filter((s) => s.status === "completed");
@@ -306,8 +333,8 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
               <TabsContent value="manual" className="space-y-4 pt-4">
                 <div className="space-y-2">
                   <Label>Round</Label>
-                  <Select 
-                    value={String(selectedRoundForAdd)} 
+                  <Select
+                    value={String(selectedRoundForAdd)}
                     onValueChange={(v) => setSelectedRoundForAdd(parseInt(v))}
                   >
                     <SelectTrigger>
@@ -323,8 +350,8 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
                 <div className="space-y-2">
                   <Label>Student Search</Label>
                   <div className="flex gap-2">
-                    <Input 
-                      placeholder="Name or Roll Number" 
+                    <Input
+                      placeholder="Name or Roll Number"
                       value={studentSearchForAdd}
                       onChange={(e) => setStudentSearchForAdd(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSearchStudent()}
@@ -332,7 +359,7 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
                     <Button onClick={handleSearchStudent} type="button" size="sm">Search</Button>
                   </div>
                 </div>
-                
+
                 {foundStudents.length > 0 && (
                   <div className="max-h-48 overflow-y-auto space-y-2 border rounded p-2">
                     {foundStudents.map((s) => (
@@ -341,14 +368,14 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
                           <div className="text-sm font-medium">{s.name}</div>
                           <div className="text-xs text-gray-500">{s.rollNumber}</div>
                         </div>
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           className="text-indigo-600"
                           onClick={() => handleAddStudentToRound(s._id)}
                           disabled={addingStudent}
                         >
-                          Add
+                          {addingStudent ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
                         </Button>
                       </div>
                     ))}
@@ -358,19 +385,43 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
               <TabsContent value="excel" className="space-y-4 pt-4">
                 <div className="space-y-2">
                   <Label>Round</Label>
-                  <Input type="number" min="1" max={totalRounds} defaultValue="1" />
+                  <Select
+                    value={String(excelRound)}
+                    onValueChange={(v) => setExcelRound(parseInt(v))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Round" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: totalRounds }, (_, i) => i + 1).map((r) => (
+                        <SelectItem key={r} value={String(r)}>Round {r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <div
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-green-400 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
                   <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                   <p className="text-sm text-gray-600 mb-2">Click to upload or drag and drop</p>
                   <p className="text-xs text-gray-500">Excel file with student details</p>
-                  <input type="file" className="hidden" accept=".xlsx,.xls" />
-                  <Button variant="outline" className="mt-3">Choose File</Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".xlsx,.xls"
+                    onChange={handleExcelUpload}
+                  />
                 </div>
                 <div className="bg-blue-50 p-3 rounded-lg text-xs text-gray-700">
-                  <strong>Format:</strong> Excel file should have columns: Name, Roll Number
+                  <strong>Format:</strong> Excel file should have a column: <code>Roll Number</code>
                 </div>
-                <Button className="w-full bg-green-600 hover:bg-green-700">Upload & Add Students</Button>
+                {uploadingExcel && (
+                  <div className="flex items-center justify-center gap-2 text-gray-500">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Uploading…
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </DialogContent>

@@ -10,7 +10,7 @@ import { useSocket } from "@/app/socket-context";
 
 interface Notification {
   id: string;
-  type: "info" | "warning" | "success";
+  type: "info" | "warning" | "success" | "interview_call" | "queue_update" | "status_update" | "general";
   title: string;
   message: string;
   company?: string;
@@ -28,9 +28,9 @@ export function CoCoNotificationsPage() {
   const normalizeNotif = (raw: any): Notification => ({
     id: raw._id ?? raw.id ?? "",
     type: raw.type ?? "info",
-    title: raw.title ?? raw.subject ?? "Notification",
+    title: raw.title ?? raw.subject ?? mapTypeToTitle(raw.type),
     message: raw.message ?? raw.body ?? "",
-    company: raw.companyName ?? raw.company?.name ?? undefined,
+    company: raw.companyId?.name ?? raw.companyName ?? raw.company?.name ?? undefined,
     timestamp: raw.createdAt ?? raw.timestamp ?? new Date().toISOString(),
     isRead: raw.isRead ?? raw.read ?? false,
   });
@@ -38,8 +38,7 @@ export function CoCoNotificationsPage() {
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     try {
-      // CoCo gets predefined notifications
-      const data: any = await cocoApi.getPredefinedNotifications();
+      const data: any = await cocoApi.getNotifications();
       const list = Array.isArray(data) ? data : data.notifications ?? [];
       setNotifications(list.map(normalizeNotif));
     } catch {
@@ -63,10 +62,34 @@ export function CoCoNotificationsPage() {
   }, [socket]);
   // ─────────────────────────────────────────────────────────────────────────
 
+  const handleMarkRead = async (id: string) => {
+    try {
+      await cocoApi.markNotifRead(id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+      );
+    } catch {
+      // silently fail
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    const unread = notifications.filter((n) => !n.isRead);
+    for (const n of unread) {
+      try {
+        await cocoApi.markNotifRead(n.id);
+      } catch { /* skip */ }
+    }
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "success": return <CheckCircle className="h-5 w-5 text-green-600" />;
       case "warning": return <AlertCircle className="h-5 w-5 text-yellow-600" />;
+      case "interview_call": return <Bell className="h-5 w-5 text-indigo-600" />;
+      case "queue_update": return <Clock className="h-5 w-5 text-blue-600" />;
+      case "status_update": return <Info className="h-5 w-5 text-purple-600" />;
       case "info": return <Info className="h-5 w-5 text-blue-600" />;
       default: return <Bell className="h-5 w-5 text-gray-600" />;
     }
@@ -74,10 +97,13 @@ export function CoCoNotificationsPage() {
 
   const getNotificationBadge = (type: string) => {
     switch (type) {
+      case "interview_call": return <Badge className="bg-indigo-100 text-indigo-800 border-indigo-200 text-xs">Interview</Badge>;
+      case "queue_update": return <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs">Queue</Badge>;
+      case "status_update": return <Badge className="bg-purple-100 text-purple-800 border-purple-200 text-xs">Status</Badge>;
       case "success": return <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">Success</Badge>;
       case "warning": return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200 text-xs">Alert</Badge>;
       case "info": return <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs">Info</Badge>;
-      default: return null;
+      default: return <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">General</Badge>;
     }
   };
 
@@ -86,6 +112,7 @@ export function CoCoNotificationsPage() {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return "Just now";
     if (diffMins < 60) return `${diffMins} minutes ago`;
     const diffHrs = Math.floor(diffMins / 60);
     if (diffHrs < 24) return `${diffHrs} hours ago`;
@@ -118,11 +145,18 @@ export function CoCoNotificationsPage() {
           <Bell className="h-8 w-8 mr-3 text-green-600" />
           Notifications
         </h1>
-        {unreadCount > 0 && (
-          <Badge className="bg-red-100 text-red-800 border-red-200 text-sm px-4 py-2">
-            {unreadCount} Unread
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {unreadCount > 0 && (
+            <>
+              <Badge className="bg-red-100 text-red-800 border-red-200 text-sm px-4 py-2">
+                {unreadCount} Unread
+              </Badge>
+              <Button variant="outline" size="sm" onClick={handleMarkAllRead}>
+                Mark all read
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <Card>
@@ -136,9 +170,10 @@ export function CoCoNotificationsPage() {
               <SelectTrigger className="w-full md:w-48"><SelectValue placeholder="Filter by type" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="success">Success</SelectItem>
-                <SelectItem value="warning">Alert</SelectItem>
-                <SelectItem value="info">Info</SelectItem>
+                <SelectItem value="interview_call">Interview</SelectItem>
+                <SelectItem value="queue_update">Queue</SelectItem>
+                <SelectItem value="status_update">Status</SelectItem>
+                <SelectItem value="general">General</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -157,7 +192,8 @@ export function CoCoNotificationsPage() {
           {filteredNotifications.map((notification) => (
             <Card
               key={notification.id}
-              className={`transition-all hover:shadow-md ${!notification.isRead ? "border-l-4 border-l-green-600 bg-green-50" : ""}`}
+              className={`transition-all hover:shadow-md cursor-pointer ${!notification.isRead ? "border-l-4 border-l-green-600 bg-green-50" : ""}`}
+              onClick={() => !notification.isRead && handleMarkRead(notification.id)}
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-4">
@@ -190,4 +226,14 @@ export function CoCoNotificationsPage() {
       )}
     </div>
   );
+}
+
+function mapTypeToTitle(type?: string): string {
+  switch (type) {
+    case "interview_call": return "Interview Call";
+    case "queue_update": return "Queue Update";
+    case "status_update": return "Status Update";
+    case "general": return "General Notification";
+    default: return "Notification";
+  }
 }

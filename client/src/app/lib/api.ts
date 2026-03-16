@@ -133,14 +133,20 @@ export const cocoApi = {
         request("/coco/notify", { method: "POST", body: JSON.stringify(data) }),
     getPredefinedNotifications: () =>
         request("/coco/notifications/predefined"),
+    getNotifications: () =>
+        request("/coco/notifications"),
+    markNotifRead: (id: string) =>
+        request(`/coco/notifications/${id}/read`, { method: "PUT" }),
     addPanel: (data: Record<string, unknown>) =>
         request("/coco/panel", { method: "POST", body: JSON.stringify(data) }),
     addRound: (data: Record<string, unknown>) =>
         request("/coco/round", { method: "POST", body: JSON.stringify(data) }),
     searchStudents: (query: string) =>
         request(`/coco/students/search?q=${encodeURIComponent(query)}`),
-    addStudentToRound: (data: { studentId: string; companyId: string; roundId: string }) =>
+    addStudentToRound: (data: { studentId: string; companyId: string; roundId?: string; roundNumber?: number }) =>
         request("/coco/round/add-student", { method: "POST", body: JSON.stringify(data) }),
+    uploadRoundExcel: (formData: FormData) =>
+        uploadRequest("/coco/round/upload-students", formData),
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -175,6 +181,8 @@ export const adminApi = {
         request("/auth/register", { method: "POST", body: JSON.stringify(data) }),
     autoAllocateCocos: () =>
         request("/admin/auto-allocate-cocos", { method: "POST" }),
+    getCocoConflicts: () =>
+        request("/admin/coco-conflicts"),
 };
 
 /* ═══════════════════════════════════════════════════════════

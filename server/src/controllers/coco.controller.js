@@ -144,12 +144,12 @@ const getRounds = async (req, res) => {
   try {
     const rounds = await InterviewRound.find({ companyId: req.params.companyId })
       .populate("panels");
-    
+
     // For each round, find students associated with it via Queue status
     const augmentedRounds = await Promise.all(rounds.map(async (round) => {
-      const queueEntries = await Queue.find({ 
+      const queueEntries = await Queue.find({
         companyId: req.params.companyId,
-        roundId: round._id 
+        roundId: round._id
       }).populate({
         path: "studentId",
         populate: { path: "userId", select: "email" }
@@ -171,30 +171,123 @@ const getRounds = async (req, res) => {
   }
 };
 
-// @desc    Add a student to a round
+// @desc    Add a student to a round (auto-creates InterviewRound if needed)
 // @route   POST /api/coco/round/add-student
 const addStudentToRound = async (req, res) => {
   try {
-    const { studentId, companyId, roundId } = req.body;
-    
+    const { studentId, companyId, roundId, roundNumber } = req.body;
+
+    // Resolve the round: use provided roundId, or find/create by roundNumber
+    let resolvedRoundId = roundId;
+    if (!resolvedRoundId && roundNumber) {
+      let round = await InterviewRound.findOne({ companyId, roundNumber });
+      if (!round) {
+        round = await InterviewRound.create({
+          companyId,
+          roundNumber,
+          roundName: `Round ${roundNumber}`,
+        });
+      }
+      resolvedRoundId = round._id;
+    }
+
     // Find or create queue entry
     let queueEntry = await Queue.findOne({ studentId, companyId });
-    
+
     if (queueEntry) {
-      queueEntry.roundId = roundId;
+      queueEntry.roundId = resolvedRoundId;
+      queueEntry.status = "in_queue";
       await queueEntry.save();
     } else {
       queueEntry = await Queue.create({
         studentId,
         companyId,
-        roundId,
-        status: "in-queue"
+        roundId: resolvedRoundId,
+        status: "in_queue",
       });
     }
+
+    // Also shortlist the student for this company if not already
+    await Company.findByIdAndUpdate(companyId, {
+      $addToSet: { shortlistedStudents: studentId },
+    });
+    await Student.findByIdAndUpdate(studentId, {
+      $addToSet: { shortlistedCompanies: companyId },
+    });
 
     res.json(queueEntry);
   } catch (err) {
     res.status(400).json({ message: err.message });
+  }
+};
+
+// @desc    Upload Excel to add students to a round
+// @route   POST /api/coco/round/upload-students
+const uploadStudentsToRound = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    const { companyId, roundNumber } = req.body;
+    if (!companyId || !roundNumber) {
+      return res.status(400).json({ message: "companyId and roundNumber are required" });
+    }
+
+    // Find or create the round
+    let round = await InterviewRound.findOne({ companyId, roundNumber: Number(roundNumber) });
+    if (!round) {
+      round = await InterviewRound.create({
+        companyId,
+        roundNumber: Number(roundNumber),
+        roundName: `Round ${roundNumber}`,
+      });
+    }
+
+    // Parse the Excel file
+    const XLSX = require("xlsx");
+    const workbook = XLSX.readFile(req.file.path);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet);
+
+    let added = 0;
+    let notFound = [];
+    for (const row of rows) {
+      const rollNumber = row["Roll Number"] || row["rollNumber"] || row["RollNumber"] || row["roll_number"];
+      if (!rollNumber) continue;
+
+      const student = await Student.findOne({ rollNumber: String(rollNumber).trim() });
+      if (!student) {
+        notFound.push(String(rollNumber));
+        continue;
+      }
+
+      // Create or update queue entry
+      let queueEntry = await Queue.findOne({ studentId: student._id, companyId });
+      if (queueEntry) {
+        queueEntry.roundId = round._id;
+        queueEntry.status = "in_queue";
+        await queueEntry.save();
+      } else {
+        await Queue.create({
+          studentId: student._id,
+          companyId,
+          roundId: round._id,
+          status: "in_queue",
+        });
+      }
+
+      // Shortlist
+      await Company.findByIdAndUpdate(companyId, {
+        $addToSet: { shortlistedStudents: student._id },
+      });
+      await Student.findByIdAndUpdate(student._id, {
+        $addToSet: { shortlistedCompanies: companyId },
+      });
+
+      added++;
+    }
+
+    res.json({ message: `${added} student(s) added to Round ${roundNumber}`, notFound });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 
@@ -216,6 +309,37 @@ const getPredefinedNotifications = async (req, res) => {
   res.json(PREDEFINED_NOTIFICATIONS);
 };
 
+// @desc    Get actual notifications for the logged-in CoCo
+// @route   GET /api/coco/notifications
+const Notification = require("../models/Notification.model");
+const getCocoNotifications = async (req, res) => {
+  try {
+    const notifications = await Notification.find({ recipientId: req.user.id })
+      .populate("companyId", "name")
+      .sort({ createdAt: -1 })
+      .limit(50);
+    res.json(notifications);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Mark a notification as read
+// @route   PUT /api/coco/notifications/:id/read
+const markNotifRead = async (req, res) => {
+  try {
+    const notif = await Notification.findOneAndUpdate(
+      { _id: req.params.id, recipientId: req.user.id },
+      { isRead: true },
+      { new: true }
+    );
+    if (!notif) return res.status(404).json({ message: "Notification not found" });
+    res.json(notif);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // @desc    Search all students
 // @route   GET /api/coco/students/search
 const searchAllStudents = async (req, res) => {
@@ -223,10 +347,17 @@ const searchAllStudents = async (req, res) => {
     const { q } = req.query;
     const students = await Student.find({
       $or: [{ name: new RegExp(q, "i") }, { rollNumber: new RegExp(q, "i") }],
-    }).limit(20);
+    }).populate("userId", "email").limit(20);
+
+    // Attach email from populated userId onto each student object
+    const studentsWithEmail = students.map((s) => {
+      const obj = s.toObject();
+      obj.email = obj.userId?.email || "";
+      return obj;
+    });
 
     const { withQueueStatus } = require("../utils/student.helper");
-    const augmentedStudents = await withQueueStatus(students);
+    const augmentedStudents = await withQueueStatus(studentsWithEmail);
 
     res.json(augmentedStudents);
   } catch (err) {
@@ -238,5 +369,6 @@ module.exports = {
   getAssignedCompany, getShortlistedStudents, addStudentToQueue,
   updateStudentStatus, sendNotification, toggleWalkIn,
   addPanel, getPanels, getRounds, addRound, getPredefinedNotifications,
-  searchAllStudents, addStudentToRound
+  searchAllStudents, addStudentToRound, uploadStudentsToRound,
+  getCocoNotifications, markNotifRead,
 };

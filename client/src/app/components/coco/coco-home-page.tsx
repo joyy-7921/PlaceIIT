@@ -88,7 +88,7 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
       round: raw.round ?? raw.currentRound ?? 1,
       locationStatus: (statusMap[statusRaw] ?? "in-queue") as Student["locationStatus"],
       currentCompany: raw.companyName ?? companyName,
-      userId: raw.userId?._id ?? raw.userId ?? "",
+      userId: raw.userId?._id ?? (typeof raw.userId === 'string' ? raw.userId : '') ?? "",
     };
   };
 
@@ -118,7 +118,7 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
           const studentsData: any = await cocoApi.getShortlistedStudents(cid).catch(() => []);
           const sList = Array.isArray(studentsData) ? studentsData : studentsData.students ?? [];
           setStudents(sList.map(normalizeStudent));
-          
+
           // Fetch panels directly
           try {
             const panelsData: any = await cocoApi.getPanels(cid).catch(() => []);
@@ -197,15 +197,15 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
       toast.error("Student user information not found");
       return;
     }
-    
+
     try {
       const msg = type === "come"
         ? `Please proceed to ${company.venue} for your ${company.name} interview.`
         : `Update regarding your ${company.name} interview.`;
-      await cocoApi.sendNotification({ 
-        studentUserId: student.userId, 
-        companyId: company.id, 
-        message: msg 
+      await cocoApi.sendNotification({
+        studentUserId: student.userId,
+        companyId: company.id,
+        message: msg
       });
       toast.success("Notification sent!");
     } catch {
@@ -356,8 +356,8 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
                   <Input placeholder="Panel Name" value={panelName} onChange={(e) => setPanelName(e.target.value)} />
                   <Input placeholder="Room Number" value={panelRoom} onChange={(e) => setPanelRoom(e.target.value)} />
                   <Input placeholder="Panel Members (comma separated)" value={panelMembers} onChange={(e) => setPanelMembers(e.target.value)} />
-                  <Button 
-                    className="w-full bg-green-600 hover:bg-green-700" 
+                  <Button
+                    className="w-full bg-green-600 hover:bg-green-700"
                     onClick={handleAddPanel}
                     disabled={addingPanel}
                   >
@@ -486,10 +486,10 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
                       <Button size="sm" variant="outline" onClick={() => handleSendNotification(student.id, "general")}>
                         <Mail className="h-4 w-4 mr-1" /> Send Notification
                       </Button>
-                      <Select onValueChange={(value) => handleUpdateStatus(student.id, value as Student["status"])}>
+                      <Select value={student.status} onValueChange={(value) => handleUpdateStatus(student.id, value as Student["status"])}>
                         <SelectTrigger className="w-40"><SelectValue placeholder="Update Status" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="in-queue">Add to Queue</SelectItem>
+                          <SelectItem value="in-queue">In Queue</SelectItem>
                           <SelectItem value="in-interview">In Interview</SelectItem>
                           <SelectItem value="completed">Completed</SelectItem>
                         </SelectContent>

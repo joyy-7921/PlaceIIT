@@ -1,10 +1,40 @@
 import { Outlet, useNavigate } from "react-router-dom";
 import { CoCoNavbar } from "@/app/components/coco/coco-navbar";
 import { useAuth } from "@/app/auth-context";
+import { useSocket } from "@/app/socket-context";
+import { useEffect, useCallback } from "react";
+import { cocoApi } from "@/app/lib/api";
 
 export function CoCoLayout() {
     const navigate = useNavigate();
     const auth = useAuth();
+    const { socket } = useSocket();
+
+    // Fetch unread notification count on mount
+    const fetchUnreadCount = useCallback(async () => {
+        try {
+            const data: any = await cocoApi.getNotifications();
+            const list = Array.isArray(data) ? data : [];
+            const unread = list.filter((n: any) => !n.isRead).length;
+            auth.setCocoUnreadNotificationsCount(unread);
+        } catch {
+            // silently fail
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchUnreadCount();
+    }, [fetchUnreadCount]);
+
+    // Listen for new notifications in real-time
+    useEffect(() => {
+        if (!socket) return;
+        const handleNewNotif = () => {
+            fetchUnreadCount();
+        };
+        socket.on("notification:sent", handleNewNotif);
+        return () => { socket.off("notification:sent", handleNewNotif); };
+    }, [socket, fetchUnreadCount]);
 
     const handleNavigate = (page: string) => {
         switch (page) {

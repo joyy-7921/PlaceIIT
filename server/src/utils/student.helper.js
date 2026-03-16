@@ -28,8 +28,13 @@ const withQueueStatus = async (students) => {
 
     // Map the students and attach the status safely
     return students.map((studentDoc) => {
-        const s = typeof studentDoc.toObject === "function" ? studentDoc.toObject() : studentDoc;
+        const s = typeof studentDoc.toObject === "function" ? studentDoc.toObject() : { ...studentDoc };
         const q = queueMap[s._id.toString()];
+
+        // Preserve email from populated userId
+        if (s.userId && typeof s.userId === "object" && s.userId.email) {
+            s.email = s.email || s.userId.email;
+        }
 
         if (q && q.companyId) {
             if (q.status === STUDENT_STATUS.IN_INTERVIEW) {
