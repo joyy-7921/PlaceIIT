@@ -142,8 +142,12 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
     const formData = new FormData();
     formData.append("file", file);
     try {
-      await adminApi.uploadCompanyExcel(formData);
-      toast.success("Companies uploaded from Excel successfully");
+      const res: any = await adminApi.uploadCompanyExcel(formData);
+      toast.success(res.message || "Companies uploaded from Excel successfully");
+      if (res.errors?.length > 0) {
+        toast.warning(`${res.errors.length} row(s) had issues. Check console for details.`);
+        console.warn("Company Excel errors:", res.errors);
+      }
       await fetchCompanies();
     } catch (err: any) {
       toast.error(err.message ?? "Upload failed");
@@ -156,10 +160,14 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
     if (!file) return;
     const formData = new FormData();
     formData.append("file", file);
-    if (companyId) formData.append("companyId", companyId);
+    formData.append("companyId", companyId);
     try {
-      await adminApi.uploadShortlistExcel(formData);
-      toast.success("Shortlist upload successful — students will appear shortly");
+      const res: any = await adminApi.uploadShortlistExcel(formData);
+      toast.success(res.message || "Shortlist upload successful");
+      if (res.errors?.length > 0) {
+        toast.warning(`${res.errors.length} row(s) had issues. Check console for details.`);
+        console.warn("Shortlist Excel errors:", res.errors);
+      }
       await fetchCompanies();
     } catch (err: any) {
       toast.error(err.message ?? "Upload failed");
@@ -208,7 +216,7 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
         <div className="flex gap-2">
           {/* Excel Upload for Companies */}
           <div className="relative">
-            <input id="company-excel-upload" type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelUpload} className="hidden" />
+            <input id="company-excel-upload" type="file" accept=".xlsx,.xls" onChange={handleExcelUpload} className="hidden" />
             <Button
               variant="outline"
               className="flex items-center gap-2 h-11 border-gray-300"
@@ -398,7 +406,7 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
                     <input
                       id={`student-excel-${company.id}`}
                       type="file"
-                      accept=".xlsx,.xls,.csv"
+                      accept=".xlsx,.xls"
                       onChange={(e) => handleShortlistExcelUpload(e, company.id)}
                       className="hidden"
                     />

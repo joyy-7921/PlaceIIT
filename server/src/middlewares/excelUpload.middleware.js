@@ -12,10 +12,10 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowed = [".xlsx", ".xls", ".csv"];
+  const allowed = [".xlsx", ".xls"];
   const ext = path.extname(file.originalname).toLowerCase();
   if (allowed.includes(ext)) cb(null, true);
-  else cb(new Error("Only Excel and CSV files are allowed"));
+  else cb(new Error("Only Excel files (.xlsx, .xls) are allowed"));
 };
 
 const upload = multer({ storage, fileFilter, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB

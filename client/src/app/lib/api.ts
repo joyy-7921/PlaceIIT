@@ -147,6 +147,9 @@ export const cocoApi = {
         request("/coco/round/add-student", { method: "POST", body: JSON.stringify(data) }),
     uploadRoundExcel: (formData: FormData) =>
         uploadRequest("/coco/round/upload-students", formData),
+    /** Add student to company shortlist (from CoCo portal) */
+    addStudentToCompany: (data: { studentId: string; companyId: string }) =>
+        request("/coco/company/add-student", { method: "POST", body: JSON.stringify(data) }),
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -162,6 +165,12 @@ export const adminApi = {
     searchStudents: (query: string) =>
         request(`/admin/students/search?q=${encodeURIComponent(query)}`),
     getCocos: () => request("/admin/cocos"),
+    /** Add a new CoCo directly (name, email, rollNumber, contact) */
+    addCoco: (data: Record<string, unknown>) =>
+        request("/admin/cocos", { method: "POST", body: JSON.stringify(data) }),
+    /** Add a new Student directly (name, rollNumber only required) */
+    addStudent: (data: Record<string, unknown>) =>
+        request("/admin/students", { method: "POST", body: JSON.stringify(data) }),
     assignCoco: (data: { cocoId: string; companyId: string }) =>
         request("/admin/assign-coco", { method: "POST", body: JSON.stringify(data) }),
     removeCoco: (data: { cocoId: string; companyId: string }) =>
@@ -170,6 +179,8 @@ export const adminApi = {
         uploadRequest("/admin/upload/companies", formData),
     uploadShortlistExcel: (formData: FormData) =>
         uploadRequest("/admin/upload/shortlist", formData),
+    uploadCocoExcel: (formData: FormData) =>
+        uploadRequest("/admin/upload/cocos", formData),
     uploadCocoRequirementsExcel: (formData: FormData) =>
         uploadRequest("/admin/upload/coordinator-requirements", formData),
     getUploadStatus: (id: string) => request(`/admin/upload/${id}`),
@@ -177,6 +188,7 @@ export const adminApi = {
         request(`/admin/companies/${companyId}/students`),
     shortlistStudents: (companyId: string, rollNumbers: string[]) =>
         request("/admin/students/shortlist", { method: "POST", body: JSON.stringify({ companyId, rollNumbers }) }),
+    /** @deprecated use addCoco instead */
     registerUser: (data: Record<string, unknown>) =>
         request("/auth/register", { method: "POST", body: JSON.stringify(data) }),
     autoAllocateCocos: () =>

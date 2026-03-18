@@ -41,9 +41,6 @@ export function StudentSearchPage({ onStudentClick, fetchApi }: StudentSearchPag
   const [formData, setFormData] = useState({
     name: "",
     rollNumber: "",
-    email: "",
-    password: "",
-    instituteId: "",
   });
 
   const normalizeStudent = (raw: any): Student => ({
@@ -99,16 +96,22 @@ export function StudentSearchPage({ onStudentClick, fetchApi }: StudentSearchPag
   );
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.name || !formData.rollNumber) {
+      toast.error("Name and Roll Number are required");
+      return;
+    }
     setIsSubmitting(true);
     try {
-      await adminApi.registerUser({
-        ...formData,
-        role: "student"
+      const res: any = await adminApi.addStudent({
+        name: formData.name,
+        rollNumber: formData.rollNumber,
       });
-      toast.success("Student added successfully!");
+      toast.success(`Student added! Login ID: ${res.credentials?.instituteId}, Password: ${res.credentials?.password}`);
       setIsAddModalOpen(false);
-      setFormData({ name: "", rollNumber: "", email: "", password: "", instituteId: "" });
-      fetchStudents(searchQuery);
+      setFormData({ name: "", rollNumber: "" });
+      const roll = res.credentials?.instituteId || formData.rollNumber;
+      setSearchQuery(roll);
+      fetchStudents(roll);
     } catch (err: any) {
       toast.error(err.message || "Failed to add student");
     } finally {
@@ -146,26 +149,7 @@ export function StudentSearchPage({ onStudentClick, fetchApi }: StudentSearchPag
                 onChange={(e) => setFormData({ ...formData, rollNumber: e.target.value })}
                 required
               />
-              <Input
-                placeholder="Institute ID"
-                value={formData.instituteId}
-                onChange={(e) => setFormData({ ...formData, instituteId: e.target.value })}
-                required
-              />
-              <Input
-                type="email"
-                placeholder="Email Address"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
-              />
-              <Input
-                type="password"
-                placeholder="Initial Password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
-              />
+              <p className="text-xs text-gray-500">Login credentials will be auto-generated: ID = Roll Number, Password = student123</p>
               <Button type="submit" className="w-full bg-indigo-600" disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Create Student Account

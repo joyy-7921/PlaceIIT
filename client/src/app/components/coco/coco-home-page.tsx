@@ -9,7 +9,7 @@ import {
 } from "@/app/components/ui/dialog";
 import {
   Building2, Users, UserPlus, Search, Phone, Mail, AlertCircle, CheckCircle,
-  Send, RotateCw, Clock, CircleDot, MapPin, XCircle, UserCheck, Loader2,
+  RotateCw, CircleDot, MapPin, XCircle, UserCheck, Loader2, Send
 } from "lucide-react";
 import { cocoApi } from "@/app/lib/api";
 import { useSocket } from "@/app/socket-context";
@@ -70,6 +70,13 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
   const [panelRoom, setPanelRoom] = useState("");
   const [panelMembers, setPanelMembers] = useState("");
 
+  // Add Student to Company state
+  const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
+  const [studentSearchQuery, setStudentSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchingStudents, setSearchingStudents] = useState(false);
+  const [addingStudentId, setAddingStudentId] = useState<string | null>(null);
+
   const normalizeStudent = (raw: any, i: number): Student => {
     const qe = raw.queueEntry ?? raw;
     const statusRaw: string = qe.status ?? "in-queue";
@@ -113,13 +120,11 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
         });
         setIsWalkinActive(!!companyObj.walkInOpen);
 
-        // Fetch students
         if (cid) {
           const studentsData: any = await cocoApi.getShortlistedStudents(cid).catch(() => []);
           const sList = Array.isArray(studentsData) ? studentsData : studentsData.students ?? [];
           setStudents(sList.map(normalizeStudent));
 
-          // Fetch panels directly
           try {
             const panelsData: any = await cocoApi.getPanels(cid).catch(() => []);
             const pList = Array.isArray(panelsData) ? panelsData : panelsData.panels ?? [];
@@ -144,27 +149,47 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // ── Real-time updates ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!socket || !company.id) return;
-
-    // Join company room to receive queue events
     socket.emit("join:company", company.id);
-
-    const handleQueueUpdate = () => fetchData();
-    const handleStatusUpdate = () => fetchData();
-
-    socket.on("queue:updated", handleQueueUpdate);
-    socket.on("status:updated", handleStatusUpdate);
-    socket.on("walkin:updated", handleQueueUpdate);
-
+    const handleUpdate = () => fetchData();
+    socket.on("queue:updated", handleUpdate);
+    socket.on("status:updated", handleUpdate);
+    socket.on("walkin:updated", handleUpdate);
     return () => {
-      socket.off("queue:updated", handleQueueUpdate);
-      socket.off("status:updated", handleStatusUpdate);
-      socket.off("walkin:updated", handleQueueUpdate);
+      socket.off("queue:updated", handleUpdate);
+      socket.off("status:updated", handleUpdate);
+      socket.off("walkin:updated", handleUpdate);
     };
   }, [socket, company.id, fetchData]);
-  // ─────────────────────────────────────────────────────────────────────────
+
+  const handleSearchStudents = async () => {
+    if (!studentSearchQuery.trim()) return;
+    setSearchingStudents(true);
+    try {
+      const data: any = await cocoApi.searchStudents(studentSearchQuery);
+      setSearchResults(Array.isArray(data) ? data : data.students ?? []);
+    } catch {
+      toast.error("Failed to search students");
+    } finally {
+      setSearchingStudents(false);
+    }
+  };
+
+  const handleAddStudentToCompany = async (studentId: string, studentName: string) => {
+    if (!company.id) return toast.error("No company assigned");
+    setAddingStudentId(studentId);
+    try {
+      await cocoApi.addStudentToCompany({ studentId, companyId: company.id });
+      toast.success(`${studentName} added to ${company.name}`);
+      setSearchResults(prev => prev.filter(s => (s._id || s.id) !== studentId));
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to add student");
+    } finally {
+      setAddingStudentId(null);
+    }
+  };
 
   const filteredStudents = students.filter((student) => {
     const matchesSearch =
@@ -179,34 +204,23 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
   });
 
   const handleUpdateStatus = async (studentId: string, newStatus: Student["status"]) => {
-    // Optimistic
-    setStudents((prev) =>
-      prev.map((s) => (s.id === studentId ? { ...s, status: newStatus, locationStatus: newStatus as any } : s))
-    );
+    setStudents(prev => prev.map(s => s.id === studentId ? { ...s, status: newStatus } : s));
     try {
       await cocoApi.updateStudentStatus({ studentId, companyId: company.id, status: newStatus });
     } catch {
       toast.error("Failed to update status");
-      fetchData(); // revert optimistic update
+      fetchData();
     }
   };
 
   const handleSendNotification = async (studentId: string, type: string) => {
     const student = students.find(s => s.id === studentId);
-    if (!student || !student.userId) {
-      toast.error("Student user information not found");
-      return;
-    }
-
+    if (!student?.userId) return toast.error("Student user information not found");
     try {
       const msg = type === "come"
         ? `Please proceed to ${company.venue} for your ${company.name} interview.`
         : `Update regarding your ${company.name} interview.`;
-      await cocoApi.sendNotification({
-        studentUserId: student.userId,
-        companyId: company.id,
-        message: msg
-      });
+      await cocoApi.sendNotification({ studentUserId: student.userId, companyId: company.id, message: msg });
       toast.success("Notification sent!");
     } catch {
       toast.error("Failed to send notification");
@@ -217,9 +231,7 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
     const newState = !isWalkinActive;
     setIsWalkinActive(newState);
     try {
-      if (company.id) {
-        await cocoApi.toggleWalkIn(company.id, { enabled: newState });
-      }
+      if (company.id) await cocoApi.toggleWalkIn(company.id, { enabled: newState });
       toast.success(newState ? "Walk-in activated" : "Walk-in deactivated");
     } catch {
       setIsWalkinActive(!newState);
@@ -233,15 +245,12 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
     try {
       await cocoApi.addPanel({
         companyId: company.id,
-        panelName: panelName,
+        panelName,
         venue: panelRoom,
-        interviewers: panelMembers.split(",").map((m) => m.trim()).filter(Boolean),
+        interviewers: panelMembers.split(",").map(m => m.trim()).filter(Boolean),
       });
       toast.success("Panel added!");
-      setPanelName("");
-      setPanelRoom("");
-      setPanelMembers("");
-      setIsAddPanelOpen(false);
+      setPanelName(""); setPanelRoom(""); setPanelMembers(""); setIsAddPanelOpen(false);
       await fetchData();
     } catch (err: any) {
       toast.error(err.message ?? "Failed to add panel");
@@ -252,261 +261,146 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "in-queue":
-        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200"><AlertCircle className="h-3 w-3 mr-1" />In Queue</Badge>;
-      case "in-interview":
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><RotateCw className="h-3 w-3 mr-1" />In Interview</Badge>;
-      case "completed":
-        return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle className="h-3 w-3 mr-1" />Completed</Badge>;
+      case "in-queue": return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200"><AlertCircle className="h-3 w-3 mr-1" />In Queue</Badge>;
+      case "in-interview": return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><RotateCw className="h-3 w-3 mr-1" />In Interview</Badge>;
+      case "completed": return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle className="h-3 w-3 mr-1" />Completed</Badge>;
       default: return null;
     }
   };
 
-  const getLocationBadge = (locationStatus: Student["locationStatus"], currentCompany?: string) => {
-    switch (locationStatus) {
-      case "in-queue":
-        return (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <div className="flex items-center"><MapPin className="h-4 w-4 text-blue-600 mr-2" /><span className="text-sm font-medium text-blue-900">Waiting in {currentCompany}&apos;s queue</span></div>
-          </div>
-        );
-      case "in-interview":
-        return (
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-            <div className="flex items-center"><CircleDot className="h-4 w-4 text-purple-600 mr-2 animate-pulse" /><span className="text-sm font-medium text-purple-900">Getting interviewed at {currentCompany}</span></div>
-          </div>
-        );
-      case "no-show":
-        return (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-            <div className="flex items-center"><XCircle className="h-4 w-4 text-red-600 mr-2" /><span className="text-sm font-medium text-red-900">Did not appear</span></div>
-          </div>
-        );
-      case "completed-day":
-        return (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-            <div className="flex items-center"><UserCheck className="h-4 w-4 text-green-600 mr-2" /><span className="text-sm font-medium text-green-900">Completed all interviews for the day</span></div>
-          </div>
-        );
-      default: return null;
-    }
+  const getLocationBadge = (locationStatus: string, currentCompany?: string) => {
+    const base = "border rounded-lg p-3 flex items-center mb-4";
+    if (locationStatus === "in-queue") return <div className={`${base} bg-blue-50 border-blue-200 text-blue-900`}><MapPin className="h-4 w-4 mr-2" />Waiting in {currentCompany}'s queue</div>;
+    if (locationStatus === "in-interview") return <div className={`${base} bg-purple-50 border-purple-200 text-purple-900`}><CircleDot className="h-4 w-4 mr-2 animate-pulse" />Interviewing at {currentCompany}</div>;
+    if (locationStatus === "no-show") return <div className={`${base} bg-red-50 border-red-200 text-red-900`}><XCircle className="h-4 w-4 mr-2" />Did not appear</div>;
+    if (locationStatus === "completed-day") return <div className={`${base} bg-green-50 border-green-200 text-green-900`}><UserCheck className="h-4 w-4 mr-2" />Completed for the day</div>;
+    return null;
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24 text-gray-400 gap-2">
-        <Loader2 className="h-6 w-6 animate-spin" /> Loading company data…
-      </div>
-    );
-  }
+  if (loading) return <div className="flex items-center justify-center py-24 text-gray-400 gap-2"><Loader2 className="h-6 w-6 animate-spin" /> Loading...</div>;
 
   return (
     <div className="space-y-6">
-      {/* Company Header */}
       <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
         <CardHeader>
           <div className="flex items-start justify-between">
             <div className="flex items-start space-x-4">
               <div className="h-16 w-16 rounded-lg bg-white flex items-center justify-center shadow-md">
-                {company.logo ? (
-                  <img src={company.logo} alt={company.name} className="h-12 w-12 object-contain"
-                    onError={(e) => { e.currentTarget.style.display = "none"; }} />
-                ) : (
-                  <span className="text-2xl font-bold text-gray-700">{company.name.charAt(0)}</span>
-                )}
+                {company.logo ? <img src={company.logo} className="h-12 w-12 object-contain" /> : <span className="text-2xl font-bold text-gray-700">{company.name.charAt(0)}</span>}
               </div>
               <div>
                 <CardTitle className="text-2xl text-gray-900 mb-2">{company.name}</CardTitle>
-                {company.role && <p className="text-gray-700 mb-1">{company.role}</p>}
                 <p className="text-sm text-gray-600">{company.venue}</p>
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={onRoundTracking} className="border-green-600 text-green-600 hover:bg-green-50">
-                <RotateCw className="h-4 w-4 mr-2" /> Round Tracking
-              </Button>
-              <Button
-                variant={isWalkinActive ? "default" : "outline"}
-                onClick={handleToggleWalkin}
-                className={isWalkinActive ? "bg-green-600 hover:bg-green-700" : "border-green-600 text-green-600 hover:bg-green-50"}
-              >
-                <Building2 className="h-4 w-4 mr-2" />
-                {isWalkinActive ? "Walk-in Active" : "Activate Walk-in"}
-              </Button>
+              <Button variant="outline" onClick={onRoundTracking} className="border-green-600 text-green-600 hover:bg-green-50"><RotateCw className="h-4 w-4 mr-2" /> Round Tracking</Button>
+              <Button variant={isWalkinActive ? "default" : "outline"} onClick={handleToggleWalkin} className={isWalkinActive ? "bg-green-600" : "border-green-600 text-green-600"}><Building2 className="h-4 w-4 mr-2" />{isWalkinActive ? "Walk-in Active" : "Activate Walk-in"}</Button>
             </div>
           </div>
         </CardHeader>
       </Card>
 
-      {/* Panels */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center"><Users className="h-5 w-5 mr-2 text-green-600" />Interview Panels</CardTitle>
-            <Dialog open={isAddPanelOpen} onOpenChange={setIsAddPanelOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-green-600 hover:bg-green-700"><UserPlus className="h-4 w-4 mr-2" />Add Panel</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add New Panel</DialogTitle>
-                  <DialogDescription>Create a new interview panel for {company.name}</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <Input placeholder="Panel Name" value={panelName} onChange={(e) => setPanelName(e.target.value)} />
-                  <Input placeholder="Room Number" value={panelRoom} onChange={(e) => setPanelRoom(e.target.value)} />
-                  <Input placeholder="Panel Members (comma separated)" value={panelMembers} onChange={(e) => setPanelMembers(e.target.value)} />
-                  <Button
-                    className="w-full bg-green-600 hover:bg-green-700"
-                    onClick={handleAddPanel}
-                    disabled={addingPanel}
-                  >
-                    {addingPanel ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating...
-                      </>
-                    ) : "Create Panel"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="flex items-center"><Users className="h-5 w-5 mr-2 text-green-600" />Interview Panels</CardTitle>
+          <Dialog open={isAddPanelOpen} onOpenChange={setIsAddPanelOpen}>
+            <DialogTrigger asChild><Button className="bg-green-600 hover:bg-green-700"><UserPlus className="h-4 w-4 mr-2" />Add Panel</Button></DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Add New Panel</DialogTitle></DialogHeader>
+              <div className="space-y-4 pt-4">
+                <Input placeholder="Panel Name" value={panelName} onChange={(e) => setPanelName(e.target.value)} />
+                <Input placeholder="Room Number" value={panelRoom} onChange={(e) => setPanelRoom(e.target.value)} />
+                <Input placeholder="Members (comma separated)" value={panelMembers} onChange={(e) => setPanelMembers(e.target.value)} />
+                <Button className="w-full bg-green-600" onClick={handleAddPanel} disabled={addingPanel}>{addingPanel ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Panel"}</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </CardHeader>
         <CardContent>
-          {panels.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Users className="h-10 w-10 mx-auto mb-2 text-gray-300" />
-              <p className="text-sm">No panels created yet. Click "Add Panel" to create one.</p>
-            </div>
-          ) : (
-            <div className="grid md:grid-cols-2 gap-4">
-              {panels.map((panel) => (
-                <Card key={panel.id} className="border-2">
-                  <CardContent className="pt-6">
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-semibold text-gray-900 text-lg">{panel.name}</h3>
-                        <Badge variant="outline">{panel.room}</Badge>
-                      </div>
-                      <div className="bg-green-50 p-3 rounded-lg border border-green-200">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-gray-700">Ongoing Round:</span>
-                          <Badge className="bg-green-600 text-white">Round {panel.currentRound}</Badge>
-                        </div>
-                      </div>
-                      {panel.currentStudent && (
-                        <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                          <div className="flex items-center mb-1">
-                            <CircleDot className="h-4 w-4 text-blue-600 mr-2" />
-                            <span className="text-sm font-medium text-gray-700">Currently Interviewing:</span>
-                          </div>
-                          <p className="text-sm font-semibold text-gray-900">{panel.currentStudent.name}</p>
-                          <p className="text-xs text-gray-600">{panel.currentStudent.rollNo}</p>
-                        </div>
-                      )}
-                      <div className="text-sm text-gray-600 pt-2 border-t">
-                        <p className="font-medium mb-1">Panel Members:</p>
-                        {panel.members.map((member, idx) => (
-                          <p key={idx} className="text-xs">• {member}</p>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+          <div className="grid md:grid-cols-2 gap-4">
+            {panels.map((panel) => (
+              <Card key={panel.id} className="border-2">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-lg">{panel.name}</h3>
+                    <Badge variant="outline">{panel.room}</Badge>
+                  </div>
+                  <div className="text-sm text-gray-600">Members: {panel.members.join(", ")}</div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
-      {/* Student Search and List */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center"><Users className="h-5 w-5 mr-2 text-green-600" />Students List</CardTitle>
+          <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
+            <DialogTrigger asChild><Button className="bg-indigo-600 hover:bg-indigo-700"><UserPlus className="h-4 w-4 mr-2" />Add Student</Button></DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader><DialogTitle>Add Student to {company.name}</DialogTitle></DialogHeader>
+              <div className="space-y-4 pt-4">
+                <div className="flex gap-2">
+                  <Input placeholder="Search name/roll..." value={studentSearchQuery} onChange={(e) => setStudentSearchQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearchStudents()} />
+                  <Button onClick={handleSearchStudents} disabled={searchingStudents}>{searchingStudents ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}</Button>
+                </div>
+                <div className="max-h-64 overflow-y-auto space-y-2">
+                  {searchResults.map((s: any) => (
+                    <div key={s._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                      <div><p className="font-semibold">{s.name}</p><p className="text-xs text-gray-500">{s.rollNumber}</p></div>
+                      <Button size="sm" className="bg-green-600" onClick={() => handleAddStudentToCompany(s._id, s.name)} disabled={addingStudentId === s._id}>Add</Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-              <Input placeholder="Search by name or roll number…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
+              <Input placeholder="Filter students..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
             </div>
-            <Select value={selectedRound} onValueChange={setSelectedRound}>
-              <SelectTrigger className="w-full md:w-40"><SelectValue placeholder="Select Round" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Rounds</SelectItem>
-                {Array.from({ length: company.totalRounds }, (_, i) => (
-                  <SelectItem key={i + 1} value={String(i + 1)}>Round {i + 1}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-48"><SelectValue placeholder="Filter by Status" /></SelectTrigger>
+              <SelectTrigger className="w-48"><SelectValue placeholder="All Status" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="yet-to-interview">Yet to Interview</SelectItem>
+                <SelectItem value="all">All</SelectItem>
                 <SelectItem value="in-queue">In Queue</SelectItem>
                 <SelectItem value="in-interview">In Interview</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
               </SelectContent>
             </Select>
           </div>
-
           <div className="space-y-3">
             {filteredStudents.map((student) => (
-              <Card key={student.id} className="border-2">
-                <CardContent className="pt-6">
-                  <div className="space-y-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900 text-lg">{student.name}</h3>
-                        <p className="text-sm text-gray-600">{student.rollNo}</p>
-                      </div>
-                      <div className="flex flex-col items-end gap-2">
-                        {getStatusBadge(student.status)}
-                        <Badge variant="outline" className="text-xs">Round {student.round}</Badge>
-                      </div>
-                    </div>
-
-                    {getLocationBadge(student.locationStatus, student.currentCompany)}
-
-                    <div className="grid md:grid-cols-2 gap-3 text-sm">
-                      <div className="flex items-center text-gray-700">
-                        <Phone className="h-4 w-4 mr-2 text-gray-400" /> {student.contact}
-                      </div>
-                      <div className="flex items-center text-gray-700">
-                        <AlertCircle className="h-4 w-4 mr-2 text-red-400" /> Emergency: {student.emergencyContact}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 pt-2 border-t">
-                      <Button size="sm" variant="outline" onClick={() => handleSendNotification(student.id, "come")}>
-                        <Send className="h-4 w-4 mr-1" /> Send to Interview
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleSendNotification(student.id, "general")}>
-                        <Mail className="h-4 w-4 mr-1" /> Send Notification
-                      </Button>
-                      <Select value={student.status} onValueChange={(value) => handleUpdateStatus(student.id, value as Student["status"])}>
-                        <SelectTrigger className="w-40"><SelectValue placeholder="Update Status" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="in-queue">In Queue</SelectItem>
-                          <SelectItem value="in-interview">In Interview</SelectItem>
-                          <SelectItem value="completed">Completed</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+              <Card key={student.id} className="border-2 p-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-semibold">{student.name}</h3>
+                    <p className="text-sm text-gray-500">{student.rollNo}</p>
+                    <div className="flex gap-4 text-xs mt-2"><span className="flex items-center"><Phone className="h-3 w-3 mr-1" />{student.contact}</span></div>
                   </div>
-                </CardContent>
+                  <div className="text-right space-y-2">
+                    {getStatusBadge(student.status)}
+                    <Select value={student.status} onValueChange={(v) => handleUpdateStatus(student.id, v as any)}>
+                      <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="in-queue">In Queue</SelectItem>
+                        <SelectItem value="in-interview">In Interview</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-4 pt-4 border-t">
+                  <Button size="sm" variant="outline" onClick={() => handleSendNotification(student.id, "come")}><Send className="h-3 w-3 mr-1" /> Interview Call</Button>
+                </div>
               </Card>
             ))}
           </div>
-
-          {filteredStudents.length === 0 && (
-            <div className="text-center py-12 text-gray-500">
-              <Users className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-              <p>{students.length === 0 ? "No students shortlisted for this company yet." : "No students found matching the filters."}</p>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

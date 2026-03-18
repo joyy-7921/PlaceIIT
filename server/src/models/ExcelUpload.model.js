@@ -16,7 +16,7 @@ const excelUploadSchema = new mongoose.Schema(
       default: "pending",
     },
     recordsProcessed: { type: Number, default: 0 },
-    errors: [{ type: String }],
+    problemList: [String],
   },
   { timestamps: true }
 );

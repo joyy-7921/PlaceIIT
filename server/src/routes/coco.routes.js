@@ -7,7 +7,7 @@ const {
   updateStudentStatus, sendNotification, toggleWalkIn,
   addPanel, getPanels, getRounds, addRound, getPredefinedNotifications,
   searchAllStudents, addStudentToRound, uploadStudentsToRound,
-  getCocoNotifications, markNotifRead,
+  getCocoNotifications, markNotifRead, addStudentToCompany,
 } = require("../controllers/coco.controller");
 const { protect } = require("../middlewares/auth.middleware");
 const { authorize } = require("../middlewares/role.middleware");
@@ -30,5 +30,6 @@ router.post("/round", addRound);
 router.post("/round/add-student", addStudentToRound);
 router.post("/round/upload-students", upload.single("file"), uploadStudentsToRound);
 router.get("/students/search", searchAllStudents);
+router.post("/company/add-student", addStudentToCompany);
 
 module.exports = router;

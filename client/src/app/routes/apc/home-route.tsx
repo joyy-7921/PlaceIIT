@@ -8,21 +8,20 @@ export function APCHomeRoute() {
     const navigate = useNavigate();
     const auth = useAuth();
 
-    const [stats, setStats] = useState({ students: 0, cocos: 0, companies: 0, placements: 0 });
+    const [stats, setStats] = useState({ students: 0, cocos: 0, companies: 0 });
 
     useEffect(() => {
         adminApi
             .getStats()
             .then((data: any) => {
                 setStats({
-                    students: data.students ?? data.totalStudents ?? 0,
-                    cocos: data.cocos ?? data.totalCocos ?? 0,
-                    companies: data.companies ?? data.totalCompanies ?? 0,
-                    placements: data.placements ?? data.totalPlacements ?? 0,
+                    students: data.students ?? 0,
+                    cocos: data.coordinators ?? data.cocos ?? 0,
+                    companies: data.companies ?? 0,
                 });
             })
             .catch(() => {
-                setStats({ students: 0, cocos: 0, companies: 0, placements: 0 });
+                setStats({ students: 0, cocos: 0, companies: 0 });
             });
     }, []);
 

@@ -26,7 +26,6 @@ interface APCHomePageProps {
     students: number;
     cocos: number;
     companies: number;
-    placements?: number;
   };
   onNavigate: (page: string) => void;
 }
@@ -80,7 +79,7 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
     };
   }, [socket, fetchSchedule]);
 
-  const placementCount = stats.placements ?? 0;
+
 
   const getStatusBadge = (status: string) => {
     if (status === "ongoing") {
@@ -101,7 +100,7 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
       </div>
 
       {/* Main Stats */}
-      <div className="grid gap-6 md:grid-cols-4 mb-8">
+      <div className="grid gap-6 md:grid-cols-3 mb-8">
         <StatsCard
           title="Total Students"
           value={stats.students}
@@ -119,12 +118,6 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
           value={stats.companies}
           icon={Building2}
           iconColor="text-purple-600"
-        />
-        <StatsCard
-          title="Total Placements"
-          value={placementCount}
-          icon={Award}
-          iconColor="text-yellow-600"
         />
       </div>
 
