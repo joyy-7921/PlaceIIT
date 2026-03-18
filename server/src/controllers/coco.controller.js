@@ -365,10 +365,39 @@ const searchAllStudents = async (req, res) => {
   }
 };
 
+// @desc    Add a student to a company's shortlist (from CoCo portal)
+// @route   POST /api/coco/company/add-student
+const addStudentToCompany = async (req, res) => {
+  try {
+    const { studentId, companyId } = req.body;
+    if (!studentId || !companyId) {
+      return res.status(400).json({ message: "studentId and companyId are required" });
+    }
+
+    const student = await Student.findById(studentId);
+    if (!student) return res.status(404).json({ message: "Student not found" });
+
+    const company = await Company.findById(companyId);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+
+    // Add student to company shortlist and vice versa
+    await Company.findByIdAndUpdate(companyId, {
+      $addToSet: { shortlistedStudents: studentId },
+    });
+    await Student.findByIdAndUpdate(studentId, {
+      $addToSet: { shortlistedCompanies: companyId },
+    });
+
+    res.json({ message: `${student.name} added to ${company.name} successfully` });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getAssignedCompany, getShortlistedStudents, addStudentToQueue,
   updateStudentStatus, sendNotification, toggleWalkIn,
   addPanel, getPanels, getRounds, addRound, getPredefinedNotifications,
   searchAllStudents, addStudentToRound, uploadStudentsToRound,
-  getCocoNotifications, markNotifRead,
+  getCocoNotifications, markNotifRead, addStudentToCompany,
 };

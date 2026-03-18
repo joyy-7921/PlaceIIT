@@ -3,7 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/ca
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
-import { UserPlus, Trash2, Shuffle, Mail, Calendar, Clock, Upload, Search, Filter, Loader2 } from "lucide-react";
+import { Badge } from "@/app/components/ui/badge";
+import {
+  Users, UserPlus, Search, Building2, Calendar, Clock,
+  MapPin, CheckCircle2, Circle, AlertCircle, Trash2, Shuffle, Check, ChevronsUpDown, Loader2, Upload, Mail, Filter
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -69,11 +73,13 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
   const [newCoCoName, setNewCoCoName] = useState("");
   const [newCoCoEmail, setNewCoCoEmail] = useState("");
   const [newCoCoPhone, setNewCoCoPhone] = useState("");
+  const [newCoCoRollNumber, setNewCoCoRollNumber] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [addMethod, setAddMethod] = useState<"manual" | "excel">("manual");
   const [companySearchQuery, setCompanySearchQuery] = useState("");
   const [showUnassignedOnly, setShowUnassignedOnly] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [unallotted, setUnallotted] = useState<any[]>([]);
 
   const normalizeCoco = (raw: any): CoCo => ({
     id: raw._id ?? raw.id ?? "",
@@ -106,9 +112,12 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
 
       // Build assignment map from assigned companies list on each coco
       const assignmentList: CoCoAssignment[] = [];
-      cocoList.forEach((coco: CoCo) => {
-        (coco.assignedCompanies ?? []).forEach((companyId: string) => {
-          assignmentList.push({ cocoId: coco.id, companyId });
+      cocoList.forEach((coco: any) => {
+        (coco.assignedCompanies ?? []).forEach((comp: any) => {
+          const compId = typeof comp === "object" ? (comp._id || comp.id) : comp;
+          if (compId) {
+            assignmentList.push({ cocoId: coco.id, companyId: compId.toString() });
+          }
         });
       });
       setAssignments(assignmentList);
@@ -124,20 +133,20 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
   }, [fetchAll]);
 
   const handleAddCoCo = async () => {
-    if (!newCoCoName || !newCoCoEmail) return;
+    if (!newCoCoName) return;
     setSaving(true);
     try {
-      await adminApi.registerUser({ 
-        name: newCoCoName, 
-        email: newCoCoEmail, 
-        instituteId: newCoCoEmail.split('@')[0], // fallback instituteId
-        password: "password123", // default password
-        role: "coco" 
+      const res: any = await adminApi.addCoco({
+        name: newCoCoName,
+        email: newCoCoEmail || undefined,
+        rollNumber: newCoCoRollNumber || undefined,
+        contact: newCoCoPhone || undefined,
       });
-      toast.success(`CoCo ${newCoCoName} added`);
+      toast.success(`CoCo ${newCoCoName} added! Credentials: ID=${res.credentials?.instituteId}, Password=${res.credentials?.password}`);
       setNewCoCoName("");
       setNewCoCoEmail("");
       setNewCoCoPhone("");
+      setNewCoCoRollNumber("");
       setIsAddDialogOpen(false);
       await fetchAll();
     } catch (err: any) {
@@ -153,14 +162,17 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
     const formData = new FormData();
     formData.append("file", file);
     try {
-      await adminApi.uploadCocoRequirementsExcel(formData);
-      toast.success("CoCo requirements uploaded successfully");
+      const res: any = await adminApi.uploadCocoExcel(formData);
+      toast.success(res.message || "CoCos imported from Excel successfully");
+      if (res.errors?.length > 0) {
+        toast.warning(`${res.errors.length} row(s) had issues. Check console for details.`);
+        console.warn("Excel import errors:", res.errors);
+      }
       setIsAddDialogOpen(false);
       await fetchAll();
     } catch (err: any) {
       toast.error(err.message ?? "Upload failed");
     }
-    // Reset input
     event.target.value = "";
   };
 
@@ -182,8 +194,16 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
   const handleRandomAllocation = async () => {
     setLoading(true);
     try {
-      await adminApi.autoAllocateCocos();
-      toast.success("Auto-allocation completed successfully");
+      const res: any = await adminApi.autoAllocateCocos();
+      toast.success(`Auto-allocation completed! ${res.totalAllocated} companies allocated.`);
+      if (res.warning) {
+        toast.warning(res.warning, { duration: 8000 });
+      }
+      if (res.unallottedCompanies?.length > 0) {
+        setUnallotted(res.unallottedCompanies);
+      } else {
+        setUnallotted([]);
+      }
       await fetchAll();
     } catch (err: any) {
       toast.error(err.message ?? "Auto-allocation failed");
@@ -217,6 +237,7 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
         await adminApi.assignCoco({ cocoId: newCoCoId, companyId });
       }
       toast.success("Assignment updated");
+      await fetchAll();
     } catch (err: any) {
       toast.error(err.message ?? "Failed to update assignment");
       await fetchAll(); // revert
@@ -311,13 +332,18 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
                       <Input id="name" placeholder="Enter name" value={newCoCoName} onChange={(e) => setNewCoCoName(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email *</Label>
-                      <Input id="email" type="email" placeholder="Enter email" value={newCoCoEmail} onChange={(e) => setNewCoCoEmail(e.target.value)} />
+                      <Label htmlFor="rollNumber">Roll Number</Label>
+                      <Input id="rollNumber" placeholder="Enter roll number (used as login ID)" value={newCoCoRollNumber} onChange={(e) => setNewCoCoRollNumber(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input id="email" type="email" placeholder="Enter email (auto-generated if empty)" value={newCoCoEmail} onChange={(e) => setNewCoCoEmail(e.target.value)} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone">Phone</Label>
                       <Input id="phone" placeholder="Enter phone number" value={newCoCoPhone} onChange={(e) => setNewCoCoPhone(e.target.value)} />
                     </div>
+                    <p className="text-xs text-gray-500">Default password: coco123</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -334,8 +360,11 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                       <h4 className="font-semibold text-blue-900 mb-2 text-sm">Excel Format Requirements:</h4>
                       <ul className="text-xs text-blue-800 space-y-1">
-                        <li>• Column 1: companyName</li>
-                        <li>• Column 2: cocoCount</li>
+                        <li>• Column: <strong>name</strong> (required)</li>
+                        <li>• Column: <strong>rollNumber</strong> (used as login ID)</li>
+                        <li>• Column: <strong>email</strong> (optional, auto-generated)</li>
+                        <li>• Column: <strong>password</strong> (optional, default: coco123)</li>
+                        <li>• Column: <strong>contact</strong> (optional)</li>
                       </ul>
                     </div>
                   </div>
@@ -354,6 +383,29 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
           </Dialog>
         </div>
       </div>
+
+      {unallotted.length > 0 && (
+        <Card className="border-2 border-red-200 shadow-md bg-red-50">
+          <CardHeader>
+            <CardTitle className="text-red-800 flex items-center">
+              <AlertCircle className="h-5 w-5 mr-2" />
+              Unallotted Companies ({unallotted.length})
+            </CardTitle>
+            <p className="text-sm text-red-600">
+              These companies were not allotted any CoCos (More companies than CoCos). Please allocate manually or add more CoCos.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {unallotted.map((comp: any) => (
+                <Badge key={comp.id || comp._id} variant="outline" className="bg-white border-red-200 text-red-700">
+                  {comp.name}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search Bar */}
       <Card>

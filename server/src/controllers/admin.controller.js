@@ -5,6 +5,21 @@ const User = require("../models/User.model");
 const ExcelUpload = require("../models/ExcelUpload.model");
 const excelService = require("../services/excel.service");
 const allocationService = require("../services/allocation.service");
+const { getIO } = require("../config/socket");
+
+const emitStatsUpdate = async () => {
+  try {
+    const [students, cocos, companies] = await Promise.all([
+      Student.countDocuments(),
+      Coordinator.countDocuments(),
+      Company.countDocuments({ isActive: true }),
+    ]);
+    const io = getIO();
+    if (io) io.emit("stats:updated", { students, coordinators: cocos, companies });
+  } catch (err) {
+    console.error("Failed to emit stats:", err);
+  }
+};
 
 // @desc    Get dashboard stats
 // @route   GET /api/admin/stats
@@ -43,6 +58,7 @@ const getCompanies = async (req, res) => {
 const addCompany = async (req, res) => {
   try {
     const company = await Company.create(req.body);
+    await emitStatsUpdate();
     res.status(201).json(company);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -67,10 +83,15 @@ const searchStudents = async (req, res) => {
     const { q } = req.query;
     const students = await Student.find({
       $or: [{ name: new RegExp(q, "i") }, { rollNumber: new RegExp(q, "i") }],
-    }).limit(20);
+    }).populate("userId", "email").limit(20);
 
     const { withQueueStatus } = require("../utils/student.helper");
-    const augmentedStudents = await withQueueStatus(students);
+    const studentsWithEmail = students.map((s) => {
+      const obj = s.toObject();
+      obj.email = obj.userId?.email || "";
+      return obj;
+    });
+    const augmentedStudents = await withQueueStatus(studentsWithEmail);
 
     res.json(augmentedStudents);
   } catch (err) {
@@ -82,8 +103,93 @@ const searchStudents = async (req, res) => {
 // @route   GET /api/admin/cocos
 const getCocos = async (req, res) => {
   try {
-    const cocos = await Coordinator.find().populate("assignedCompanies", "name day slot");
-    res.json(cocos);
+    const cocos = await Coordinator.find()
+      .populate("userId", "email")
+      .populate("assignedCompanies", "name day slot");
+    // Attach email to top-level for client convenience
+    const result = cocos.map((c) => {
+      const obj = c.toObject();
+      obj.email = obj.userId?.email || "";
+      return obj;
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Add a new CoCo (create user + coordinator)
+// @route   POST /api/admin/cocos
+const addCoco = async (req, res) => {
+  try {
+    const { name, email, rollNumber, contact, password } = req.body;
+    if (!name) return res.status(400).json({ message: "Name is required" });
+
+    const instituteId = rollNumber || name.replace(/\s+/g, "").toLowerCase();
+    const finalEmail = email || `${instituteId}@placeiit.in`;
+    const finalPassword = password || "coco123";
+
+    // Check if user already exists
+    const existing = await User.findOne({ $or: [{ instituteId }, { email: finalEmail }] });
+    if (existing) return res.status(400).json({ message: "User already exists with that ID or email" });
+
+    const user = await User.create({
+      instituteId,
+      email: finalEmail,
+      password: finalPassword,
+      role: "coco",
+    });
+
+    const coco = await Coordinator.create({
+      userId: user._id,
+      name,
+      rollNumber: rollNumber || undefined,
+      contact: contact || undefined,
+    });
+    
+    await emitStatsUpdate();
+
+    res.status(201).json({ message: "CoCo added successfully", coco, credentials: { instituteId, password: finalPassword } });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Add a new Student (create user + student) — simplified: only name + rollNumber required
+// @route   POST /api/admin/students
+const addStudent = async (req, res) => {
+  try {
+    const { name, rollNumber } = req.body;
+    if (!name || !rollNumber) return res.status(400).json({ message: "Name and Roll Number are required" });
+
+    const instituteId = rollNumber;
+    const email = `${rollNumber.toLowerCase()}@placeiit.in`;
+    const password = "student123";
+
+    // Check if user already exists
+    const existing = await User.findOne({ $or: [{ instituteId }, { email }] });
+    if (existing) return res.status(400).json({ message: `User with roll number "${rollNumber}" already exists` });
+
+    // Check if student record already exists
+    const existingStudent = await Student.findOne({ rollNumber });
+    if (existingStudent) return res.status(400).json({ message: `Student with roll number "${rollNumber}" already exists` });
+
+    const user = await User.create({
+      instituteId,
+      email,
+      password,
+      role: "student",
+    });
+
+    const student = await Student.create({
+      userId: user._id,
+      name,
+      rollNumber,
+    });
+    
+    await emitStatsUpdate();
+
+    res.status(201).json({ message: "Student added successfully", student, credentials: { instituteId, password } });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -126,8 +232,10 @@ const uploadCompanyExcel = async (req, res) => {
       filePath: req.file.path,
       type: "company_info",
     });
-    excelService.processCompanyExcel(upload._id, req.file.path); // async processing
-    res.json({ message: "File uploaded, processing started", uploadId: upload._id });
+    // Process synchronously so we can return results
+    const result = await excelService.processCompanyExcel(upload._id, req.file.path);
+    await emitStatsUpdate();
+    res.json({ message: `${result.processed} company/companies processed from Excel`, uploadId: upload._id, ...result });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -145,8 +253,27 @@ const uploadShortlistExcel = async (req, res) => {
       filePath: req.file.path,
       type: "student_shortlist",
     });
-    excelService.processShortlistExcel(upload._id, req.file.path);
-    res.json({ message: "File uploaded, processing started", uploadId: upload._id });
+    const result = await excelService.processShortlistExcel(upload._id, req.file.path, companyId || null);
+    res.json({ message: `${result.processed} student(s) shortlisted from Excel`, uploadId: upload._id, ...result });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Upload Excel - coordinator import (add new cocos from Excel)
+// @route   POST /api/admin/upload/cocos
+const uploadCocoExcel = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    const upload = await ExcelUpload.create({
+      uploadedBy: req.user.id,
+      fileName: req.file.originalname,
+      filePath: req.file.path,
+      type: "coordinator_requirements",
+    });
+    const result = await excelService.processCocoExcel(upload._id, req.file.path);
+    await emitStatsUpdate();
+    res.json({ message: `${result.processed} CoCo(s) imported from Excel`, uploadId: upload._id, ...result });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -248,34 +375,79 @@ const getShortlistedStudents = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
 // @desc    Auto allocate CoCos to companies
 // @route   POST /api/admin/auto-allocate-cocos
+// ALGORITHM:
+//   - Each CoCo is assigned EXACTLY 1 company (one-to-one).
+//   - A company may have 2+ CoCos if cocos > companies, but each coco only gets 1.
+//   - If there are more companies than cocos, some companies are left unallotted.
+//   - Returns the unallotted companies list.
 const autoAllocateCocos = async (req, res) => {
   try {
+    // First, clear all existing assignments
+    await Coordinator.updateMany({}, { $set: { assignedCompanies: [] } });
+    await Company.updateMany({}, { $set: { assignedCocos: [] } });
+
     const [cocos, companies] = await Promise.all([
       Coordinator.find(),
       Company.find({ isActive: true })
     ]);
 
-    if (cocos.length === 0 || companies.length === 0) {
-      return res.status(400).json({ message: "Need both CoCos and companies to allocate" });
+    if (cocos.length === 0) {
+      return res.status(400).json({ message: "No CoCos available for allocation" });
+    }
+    if (companies.length === 0) {
+      return res.status(400).json({ message: "No companies available for allocation" });
     }
 
-    // Shuffle for random distribution
+    // Shuffle cocos for random distribution
     const shuffledCocos = [...cocos].sort(() => Math.random() - 0.5);
-    let cocoIndex = 0;
 
     const results = [];
-    for (const company of companies) {
-      if (cocoIndex >= shuffledCocos.length) cocoIndex = 0;
-      const coco = shuffledCocos[cocoIndex++];
+    const allocatedCompanies = [];
+    const unallottedCompanies = [];
 
-      await Coordinator.findByIdAndUpdate(coco._id, { $addToSet: { assignedCompanies: company._id } });
-      await Company.findByIdAndUpdate(company._id, { $addToSet: { assignedCocos: coco._id } });
-      results.push({ company: company.name, coco: coco.name });
+    // Phase 1: Assign one CoCo per company (up to number of CoCos)
+    for (let i = 0; i < companies.length; i++) {
+      if (i < shuffledCocos.length) {
+        const coco = shuffledCocos[i];
+        const company = companies[i];
+
+        await Coordinator.findByIdAndUpdate(coco._id, {
+          $addToSet: { assignedCompanies: company._id }
+        });
+        await Company.findByIdAndUpdate(company._id, {
+          $addToSet: { assignedCocos: coco._id }
+        });
+
+        results.push({ company: company.name, coco: coco.name });
+        allocatedCompanies.push(company.name);
+      } else {
+        // More companies than cocos — these companies are unallotted
+        unallottedCompanies.push({
+          id: companies[i]._id,
+          name: companies[i].name,
+          day: companies[i].day,
+          slot: companies[i].slot,
+        });
+      }
     }
 
-    res.json({ message: "Auto-allocation completed", results });
+    const response = {
+      message: "Auto-allocation completed",
+      results,
+      totalAllocated: results.length,
+      totalCocos: cocos.length,
+      totalCompanies: companies.length,
+    };
+
+    if (unallottedCompanies.length > 0) {
+      response.unallottedCompanies = unallottedCompanies;
+      response.warning = `${unallottedCompanies.length} company/companies could not be allotted due to insufficient CoCos. Check them under the unallotted companies list.`;
+    }
+
+    res.json(response);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -292,7 +464,6 @@ const getCocoConflicts = async (req, res) => {
     const conflicts = [];
     for (const coco of cocos) {
       const companies = coco.assignedCompanies || [];
-      // Check every pair of assigned companies for same day+slot
       for (let i = 0; i < companies.length; i++) {
         for (let j = i + 1; j < companies.length; j++) {
           const a = companies[i];
@@ -323,7 +494,8 @@ const getCocoConflicts = async (req, res) => {
 
 module.exports = {
   getStats, getCompanies, addCompany, updateCompany,
-  searchStudents, getCocos, assignCoco, removeCoco,
-  uploadCompanyExcel, uploadShortlistExcel, uploadCocoRequirementsExcel, getUploadStatus,
+  searchStudents, getCocos, addCoco, addStudent,
+  assignCoco, removeCoco,
+  uploadCompanyExcel, uploadShortlistExcel, uploadCocoExcel, uploadCocoRequirementsExcel, getUploadStatus,
   shortlistStudents, getShortlistedStudents, autoAllocateCocos, getCocoConflicts
 };
