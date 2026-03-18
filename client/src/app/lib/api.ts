@@ -150,6 +150,9 @@ export const cocoApi = {
     /** Add student to company shortlist (from CoCo portal) */
     addStudentToCompany: (data: { studentId: string; companyId: string }) =>
         request("/coco/company/add-student", { method: "POST", body: JSON.stringify(data) }),
+    /** Promote students to the next round via Excel upload */
+    promoteStudentsExcel: (formData: FormData) =>
+        uploadRequest("/coco/round/promote", formData),
 };
 
 /* ═══════════════════════════════════════════════════════════
