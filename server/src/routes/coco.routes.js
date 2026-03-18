@@ -8,6 +8,7 @@ const {
   addPanel, getPanels, getRounds, addRound, getPredefinedNotifications,
   searchAllStudents, addStudentToRound, uploadStudentsToRound,
   getCocoNotifications, markNotifRead, addStudentToCompany,
+  promoteStudentsViaExcel,
 } = require("../controllers/coco.controller");
 const { protect } = require("../middlewares/auth.middleware");
 const { authorize } = require("../middlewares/role.middleware");
@@ -29,6 +30,7 @@ router.post("/panel", addPanel);
 router.post("/round", addRound);
 router.post("/round/add-student", addStudentToRound);
 router.post("/round/upload-students", upload.single("file"), uploadStudentsToRound);
+router.post("/round/promote", upload.single("file"), promoteStudentsViaExcel);
 router.get("/students/search", searchAllStudents);
 router.post("/company/add-student", addStudentToCompany);
 

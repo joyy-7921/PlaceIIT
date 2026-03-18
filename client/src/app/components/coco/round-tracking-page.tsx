@@ -8,7 +8,7 @@ import {
 } from "@/app/components/ui/dialog";
 import { Label } from "@/app/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
-import { ArrowLeft, UserPlus, Users, Clock, CheckCircle, AlertCircle, Upload, Loader2 } from "lucide-react";
+import { ArrowLeft, UserPlus, Users, Clock, CheckCircle, AlertCircle, Upload, Loader2, ArrowUpCircle } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/app/components/ui/select";
@@ -39,7 +39,7 @@ interface RoundTrackingPageProps {
 export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProps) {
   const { socket } = useSocket();
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
-  const [addMethod, setAddMethod] = useState<"manual" | "excel">("manual");
+  const [addMethod, setAddMethod] = useState<"manual" | "excel" | "promote">("manual");
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState("");
   const [totalRounds, setTotalRounds] = useState(3);
@@ -53,6 +53,8 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
   const [uploadingExcel, setUploadingExcel] = useState(false);
   const [excelRound, setExcelRound] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [promotingExcel, setPromotingExcel] = useState(false);
+  const promoteFileInputRef = useRef<HTMLInputElement>(null);
 
   const normalizeStudent = (raw: any, i: number, round: number): Student => {
     const statusRaw: string = raw.status ?? raw.queueEntry?.status ?? "in-queue";
@@ -85,7 +87,7 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
 
       const cid = companyObj._id ?? companyObj.id ?? "";
       setCompanyId(cid);
-      const rounds = companyObj.totalRounds ?? 3;
+      const rounds = 3;
       setTotalRounds(rounds);
 
       if (cid) {
@@ -203,6 +205,32 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
       setUploadingExcel(false);
       // Reset file input
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handlePromoteExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPromotingExcel(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("companyId", companyId);
+      const result: any = await cocoApi.promoteStudentsExcel(formData);
+      toast.success(result.message || "Students promoted!");
+      if (result.notFound?.length > 0) {
+        toast.warning(`Not found: ${result.notFound.join(", ")}`);
+      }
+      if (result.alreadyMaxRound?.length > 0) {
+        toast.info(`Already at max round: ${result.alreadyMaxRound.join(", ")}`);
+      }
+      setIsAddStudentOpen(false);
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to promote students");
+    } finally {
+      setPromotingExcel(false);
+      if (promoteFileInputRef.current) promoteFileInputRef.current.value = "";
     }
   };
 
@@ -325,10 +353,11 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
               <DialogTitle>Add Students to Round</DialogTitle>
               <DialogDescription>Add students manually or upload an Excel file</DialogDescription>
             </DialogHeader>
-            <Tabs value={addMethod} onValueChange={(v) => setAddMethod(v as "manual" | "excel")}>
-              <TabsList className="grid w-full grid-cols-2">
+            <Tabs value={addMethod} onValueChange={(v) => setAddMethod(v as "manual" | "excel" | "promote")}>
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="manual">Manual Entry</TabsTrigger>
                 <TabsTrigger value="excel">Excel Upload</TabsTrigger>
+                <TabsTrigger value="promote">Promote</TabsTrigger>
               </TabsList>
               <TabsContent value="manual" className="space-y-4 pt-4">
                 <div className="space-y-2">
@@ -420,6 +449,35 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
                 {uploadingExcel && (
                   <div className="flex items-center justify-center gap-2 text-gray-500">
                     <Loader2 className="h-4 w-4 animate-spin" /> Uploading…
+                  </div>
+                )}
+              </TabsContent>
+              <TabsContent value="promote" className="space-y-4 pt-4">
+                <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-sm text-amber-800">
+                  <ArrowUpCircle className="h-4 w-4 inline mr-1" />
+                  <strong>Promote to Next Round:</strong> Upload an Excel with student roll numbers. Each student will be automatically moved to the next round.
+                </div>
+                <div
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-amber-400 transition-colors"
+                  onClick={() => promoteFileInputRef.current?.click()}
+                >
+                  <ArrowUpCircle className="h-8 w-8 mx-auto mb-2 text-amber-500" />
+                  <p className="text-sm text-gray-600 mb-2">Click to upload Excel</p>
+                  <p className="text-xs text-gray-500">Students will be promoted to their next round</p>
+                  <input
+                    ref={promoteFileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".xlsx,.xls"
+                    onChange={handlePromoteExcelUpload}
+                  />
+                </div>
+                <div className="bg-blue-50 p-3 rounded-lg text-xs text-gray-700">
+                  <strong>Format:</strong> Excel file should have a column: <code>Roll Number</code>
+                </div>
+                {promotingExcel && (
+                  <div className="flex items-center justify-center gap-2 text-gray-500">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Promoting…
                   </div>
                 )}
               </TabsContent>

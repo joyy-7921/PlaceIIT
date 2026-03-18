@@ -15,7 +15,7 @@ const companySchema = new mongoose.Schema(
     shortlistedStudents: [{ type: mongoose.Schema.Types.ObjectId, ref: "Student" }],
     isWalkInEnabled: { type: Boolean, default: false },
     currentRound: { type: Number, default: 1 },
-    totalRounds: { type: Number, default: 1 },
+    totalRounds: { type: Number, default: 3 },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true }
