@@ -5,6 +5,9 @@ const User = require("../models/User.model");
 const Coordinator = require("../models/Coordinator.model");
 const ExcelUpload = require("../models/ExcelUpload.model");
 
+const crypto = require("crypto");
+const { sendWelcomeEmail } = require("./email.service");
+
 const processCompanyExcel = async (uploadId, filePath) => {
   try {
     const wb = XLSX.readFile(filePath);
@@ -96,4 +99,69 @@ const processCocoExcel = async (uploadId, filePath) => {
   }
 };
 
-module.exports = { processCompanyExcel, processShortlistExcel, processCocoExcel };
+const processStudentExcel = async (uploadId, filePath) => {
+  try {
+    const wb = XLSX.readFile(filePath);
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    // Header should be: Name, Roll Number, Email ID, Phone Number
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+    let processed = 0;
+    const problemList = [];
+
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const norm = {};
+        Object.keys(row).forEach(k => norm[k.trim().toLowerCase()] = row[k]);
+        
+        const name = norm["name"] || "";
+        const roll = norm["roll number"] || norm["roll"] || norm["rollnumber"] || "";
+        const email = norm["email id"] || norm["email"] || "";
+        const phone = norm["phone number"] || norm["phone"] || norm["contact"] || "";
+
+        if (!name || !roll || !email || !phone) { 
+            problemList.push(`Row ${i+2}: Missing one of required fields (Name, Roll Number, Email ID, Phone Number)`); 
+            continue; 
+        }
+        
+        const instituteId = roll;
+        const exist = await User.findOne({ $or: [{ instituteId }, { email }] });
+        if (exist) { 
+            problemList.push(`Row ${i+2}: User with Roll ${roll} or Email ${email} already exists`); 
+            continue; 
+        }
+
+        const generatedPassword = crypto.randomBytes(4).toString("hex");
+
+        const user = await User.create({ 
+            instituteId, 
+            email, 
+            password: generatedPassword, 
+            role: "student",
+            mustChangePassword: true
+        });
+
+        await Student.create({ 
+            userId: user._id, 
+            name, 
+            rollNumber: roll,
+            phone
+        });
+
+        try {
+            await sendWelcomeEmail(email, name, roll, generatedPassword);
+        } catch (err) {
+            console.error("[processStudentExcel] Failed to send email to", email, err);
+            problemList.push(`Row ${i+2}: Account created but welcome email failed to send to ${email}`);
+        }
+
+        processed++;
+    }
+    await ExcelUpload.findByIdAndUpdate(uploadId, { status: "success", recordsProcessed: processed, problemList });
+    return { processed, problemList };
+  } catch (err) {
+    await ExcelUpload.findByIdAndUpdate(uploadId, { status: "failed", problemList: [err.message] });
+    throw err;
+  }
+};
+
+module.exports = { processCompanyExcel, processShortlistExcel, processCocoExcel, processStudentExcel };

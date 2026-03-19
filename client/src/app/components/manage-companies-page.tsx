@@ -54,6 +54,7 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
   const [newCompanyName, setNewCompanyName] = useState("");
   const [newCompanyDay, setNewCompanyDay] = useState("");
   const [newCompanySlot, setNewCompanySlot] = useState("");
+  const [newCompanyVenue, setNewCompanyVenue] = useState("");
   const [manualStudentList, setManualStudentList] = useState("");
 
   const normalizeCompany = (raw: any): Company => ({
@@ -62,7 +63,7 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
     cocoAssigned: raw.assignedCocos?.length
       ? raw.assignedCocos.map((c: any) => c.name ?? c).join(", ")
       : "Not Assigned",
-    venue: raw.venue ?? "TBA",
+    venue: raw.venue ?? "Not Assigned",
     day: raw.day != null ? `Day ${raw.day}` : "—",
     slot: raw.slot ? raw.slot.charAt(0).toUpperCase() + raw.slot.slice(1) : "—",
     shortlistedCount: raw.shortlistedStudents?.length ?? raw.shortlistedCount ?? 0,
@@ -96,7 +97,7 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
   });
 
   const handleAddCompany = async () => {
-    if (!newCompanyName || !newCompanyDay || !newCompanySlot) return;
+    if (!newCompanyName || !newCompanyDay || !newCompanySlot || !newCompanyVenue) return;
     setSaving(true);
     try {
       const dayNum = parseInt(newCompanyDay.replace("Day ", ""), 10);
@@ -104,7 +105,7 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
         name: newCompanyName,
         day: dayNum,
         slot: newCompanySlot.toLowerCase(),
-        venue: "TBA",
+        venue: newCompanyVenue,
         mode: "offline",
         totalRounds: 1,
       });
@@ -112,6 +113,7 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
       setNewCompanyName("");
       setNewCompanyDay("");
       setNewCompanySlot("");
+      setNewCompanyVenue("");
       setIsAddCompanyOpen(false);
       await fetchCompanies();
     } catch (err: any) {
@@ -267,7 +269,11 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
                     </Select>
                   </div>
                 </div>
-                <p className="text-sm text-gray-500 mt-2">CoCo and venue can be assigned after adding the company.</p>
+                <div className="space-y-2">
+                  <Label htmlFor="venue">Venue *</Label>
+                  <Input id="venue" placeholder="Enter venue (e.g., Seminar Hall A)" value={newCompanyVenue} onChange={(e) => setNewCompanyVenue(e.target.value)} />
+                </div>
+                <p className="text-sm text-gray-500 mt-2">CoCo can be assigned after adding the company.</p>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsAddCompanyOpen(false)}>Cancel</Button>

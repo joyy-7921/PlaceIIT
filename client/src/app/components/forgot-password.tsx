@@ -3,7 +3,8 @@ import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card";
-import { ArrowLeft, Mail, Lock, CheckCircle } from "lucide-react";
+import { ArrowLeft, Mail, Lock, CheckCircle, Loader2 } from "lucide-react";
+import { authApi } from "@/app/lib/api";
 
 type UserRole = "student" | "coco" | "apc";
 
@@ -14,47 +15,55 @@ interface ForgotPasswordProps {
 
 export function ForgotPassword({ role, onBack }: ForgotPasswordProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [identifier, setIdentifier] = useState(""); // email or roll number
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
-  const [generatedOtp, setGeneratedOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  const handleSendOtp = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    
-    if (!identifier) {
-      setError("Please enter your identifier");
-      return;
-    }
-
-    // Generate mock OTP
-    const mockOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedOtp(mockOtp);
-    
-    // In a real app, send OTP to email/phone
-    console.log(`OTP sent to ${identifier}: ${mockOtp}`);
-    alert(`Mock OTP sent! Your OTP is: ${mockOtp}\n(In production, this would be sent to your email/phone)`);
-    
-    setStep(2);
-  };
-
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (otp !== generatedOtp) {
-      setError("Invalid OTP. Please try again.");
+    if (!email) {
+      setError("Please enter your email address");
       return;
     }
 
-    setStep(3);
+    setLoading(true);
+    try {
+      await authApi.forgotPassword.sendOtp(email);
+      setStep(2);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to send OTP");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleResetPassword = (e: React.FormEvent) => {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (!otp || otp.length !== 6) {
+      setError("Please enter the 6-digit OTP");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await authApi.forgotPassword.verifyOtp(email, otp);
+      setStep(3);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "OTP verification failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -68,22 +77,29 @@ export function ForgotPassword({ role, onBack }: ForgotPasswordProps) {
       return;
     }
 
-    // In a real app, update password in backend
-    console.log(`Password reset successful for ${identifier}`);
-    setSuccess(true);
-
-    // Redirect back to login after 2 seconds
-    setTimeout(() => {
-      onBack();
-    }, 2000);
+    setLoading(true);
+    try {
+      await authApi.forgotPassword.resetPassword(email, otp, newPassword);
+      setSuccess(true);
+      setTimeout(() => onBack(), 2500);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Password reset failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleResendOtp = () => {
-    const mockOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedOtp(mockOtp);
-    setOtp("");
+  const handleResendOtp = async () => {
     setError("");
-    alert(`New OTP sent! Your OTP is: ${mockOtp}\n(In production, this would be sent to your email/phone)`);
+    setOtp("");
+    setLoading(true);
+    try {
+      await authApi.forgotPassword.sendOtp(email);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to resend OTP");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getRoleTitle = () => {
@@ -92,14 +108,6 @@ export function ForgotPassword({ role, onBack }: ForgotPasswordProps) {
       case "coco": return "CoCo";
       case "apc": return "APC";
     }
-  };
-
-  const getIdentifierLabel = () => {
-    return role === "student" ? "Roll Number" : "Email Address";
-  };
-
-  const getIdentifierPlaceholder = () => {
-    return role === "student" ? "e.g., 2021CS101" : "your.email@example.com";
   };
 
   if (success) {
@@ -132,6 +140,7 @@ export function ForgotPassword({ role, onBack }: ForgotPasswordProps) {
               variant="ghost"
               size="sm"
               onClick={onBack}
+              disabled={loading}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Login
@@ -139,35 +148,36 @@ export function ForgotPassword({ role, onBack }: ForgotPasswordProps) {
           </div>
           <CardTitle className="text-2xl">Reset Password</CardTitle>
           <CardDescription>
-            {step === 1 && `Enter your ${getIdentifierLabel().toLowerCase()} to receive an OTP`}
-            {step === 2 && "Enter the OTP sent to your registered contact"}
+            {step === 1 && `Enter your registered email address to receive an OTP`}
+            {step === 2 && "Enter the OTP sent to your email"}
             {step === 3 && "Create a new password for your account"}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Step 1: Enter Identifier */}
+          {/* Step 1: Enter Email */}
           {step === 1 && (
             <form onSubmit={handleSendOtp} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="identifier">{getIdentifierLabel()}</Label>
+                <Label htmlFor="email">Email Address</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
-                    id="identifier"
-                    type={role === "student" ? "text" : "email"}
-                    placeholder={getIdentifierPlaceholder()}
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
+                    id="email"
+                    type="email"
+                    placeholder="your.email@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="pl-10"
                     required
+                    disabled={loading}
                   />
                 </div>
               </div>
               {error && (
                 <p className="text-sm text-red-600">{error}</p>
               )}
-              <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700">
-                Send OTP
+              <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700" disabled={loading}>
+                {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Sending OTP...</> : "Send OTP"}
               </Button>
             </form>
           )}
@@ -185,24 +195,26 @@ export function ForgotPassword({ role, onBack }: ForgotPasswordProps) {
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   maxLength={6}
                   required
+                  disabled={loading}
                 />
                 <p className="text-xs text-gray-500">
-                  OTP sent to {identifier}
+                  OTP sent to <span className="font-medium">{email}</span>. Valid for 10 minutes.
                 </p>
               </div>
               {error && (
                 <p className="text-sm text-red-600">{error}</p>
               )}
-              <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700">
-                Verify OTP
+              <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700" disabled={loading}>
+                {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Verifying...</> : "Verify OTP"}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 className="w-full"
                 onClick={handleResendOtp}
+                disabled={loading}
               >
-                Resend OTP
+                {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Resending...</> : "Resend OTP"}
               </Button>
             </form>
           )}
@@ -222,6 +234,7 @@ export function ForgotPassword({ role, onBack }: ForgotPasswordProps) {
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="pl-10"
                     required
+                    disabled={loading}
                   />
                 </div>
               </div>
@@ -237,14 +250,15 @@ export function ForgotPassword({ role, onBack }: ForgotPasswordProps) {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="pl-10"
                     required
+                    disabled={loading}
                   />
                 </div>
               </div>
               {error && (
                 <p className="text-sm text-red-600">{error}</p>
               )}
-              <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700">
-                Reset Password
+              <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700" disabled={loading}>
+                {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Resetting...</> : "Reset Password"}
               </Button>
             </form>
           )}
@@ -256,7 +270,7 @@ export function ForgotPassword({ role, onBack }: ForgotPasswordProps) {
                 <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold ${step >= 1 ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
                   1
                 </div>
-                <span className="text-xs mt-1">Verify ID</span>
+                <span className="text-xs mt-1">Email</span>
               </div>
               <div className={`flex-1 h-1 mx-2 ${step >= 2 ? 'bg-indigo-600' : 'bg-gray-200'}`}></div>
               <div className={`flex flex-col items-center ${step >= 2 ? 'text-indigo-600' : 'text-gray-400'}`}>

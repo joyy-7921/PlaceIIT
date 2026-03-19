@@ -23,6 +23,9 @@ interface AuthState {
     token: string | null;
     login: (instituteId: string, password: string, role?: UserRole) => Promise<{ success: boolean; error?: string }>;
     logout: () => void;
+    /** Whether the user is required to change their password */
+    userMustChangePassword: boolean;
+    setUserMustChangePassword: (val: boolean) => void;
     /** legacy mock login for testing without server */
     mockLogin: (role: UserRole, id: string, name: string) => void;
     // Notification counts (shared state)
@@ -46,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [userId, setUserId] = useState("");
     const [userName, setUserName] = useState("");
     const [token, setTokenState] = useState<string | null>(null);
+    const [userMustChangePassword, setUserMustChangePassword] = useState(false);
     const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
     const [cocoUnreadNotificationsCount, setCocoUnreadNotificationsCount] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -61,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     setUserRole(serverRoleToClient(user.role));
                     setUserId(user._id);
                     setUserName(user.instituteId);
+                    setUserMustChangePassword(!!user.mustChangePassword);
                     setIsLoggedIn(true);
                 })
                 .catch(() => {
@@ -82,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUserRole(role);
             setUserId(res.user.id);
             setUserName(res.user.instituteId);
+            setUserMustChangePassword(!!res.user.mustChangePassword);
             setIsLoggedIn(true);
             return { success: true };
         } catch (err: unknown) {
@@ -105,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUserRole(null);
         setUserId("");
         setUserName("");
+        setUserMustChangePassword(false);
         setUnreadNotificationsCount(0);
         setCocoUnreadNotificationsCount(0);
     };
@@ -127,6 +134,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 token,
                 login,
                 logout,
+                userMustChangePassword,
+                setUserMustChangePassword,
                 mockLogin,
                 unreadNotificationsCount,
                 setUnreadNotificationsCount,
@@ -140,11 +149,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export function RequireAuth({ children, allowedRole }: { children: ReactNode; allowedRole?: UserRole }) {
-    const { isLoggedIn, userRole } = useAuth();
+    const { isLoggedIn, userRole, userMustChangePassword } = useAuth();
     const location = useLocation();
 
     if (!isLoggedIn) {
         return <Navigate to="/" state={{ from: location }} replace />;
+    }
+
+    if (userMustChangePassword && location.pathname !== "/change-password") {
+        return <Navigate to="/change-password" replace />;
     }
 
     if (allowedRole && userRole !== allowedRole) {

@@ -5,7 +5,9 @@ const User = require("../models/User.model");
 const ExcelUpload = require("../models/ExcelUpload.model");
 const excelService = require("../services/excel.service");
 const allocationService = require("../services/allocation.service");
+const { sendWelcomeEmail } = require("../services/email.service");
 const { getIO } = require("../config/socket");
+const crypto = require("crypto");
 
 const emitStatsUpdate = async () => {
   try {
@@ -56,6 +58,10 @@ const getCompanies = async (req, res) => {
 // @desc    Add a company manually
 // @route   POST /api/admin/companies
 const addCompany = async (req, res) => {
+    const { name, day, slot, venue } = req.body;
+    if (!name || day === undefined || !slot || !venue) {
+      return res.status(400).json({ message: "Name, Day, Slot, and Venue are required fields" });
+    }
   try {
     const company = await Company.create(req.body);
     await emitStatsUpdate();
@@ -81,9 +87,15 @@ const updateCompany = async (req, res) => {
 const searchStudents = async (req, res) => {
   try {
     const { q } = req.query;
-    const students = await Student.find({
-      $or: [{ name: new RegExp(q, "i") }, { rollNumber: new RegExp(q, "i") }],
-    }).populate("userId", "email").limit(20);
+    console.log("[searchStudents] query:", q);
+    const filter = q
+      ? { $or: [{ name: new RegExp(q, "i") }, { rollNumber: new RegExp(q, "i") }] }
+      : {};
+    const students = await Student.find(filter)
+      .populate("userId", "email")
+      .sort({ createdAt: -1 })
+      .limit(100);
+    console.log("[searchStudents] found:", students.length, "students");
 
     const { withQueueStatus } = require("../utils/student.helper");
     const studentsWithEmail = students.map((s) => {
@@ -94,6 +106,45 @@ const searchStudents = async (req, res) => {
     const augmentedStudents = await withQueueStatus(studentsWithEmail);
 
     res.json(augmentedStudents);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Get companies for a specific student
+// @route   GET /api/admin/students/:id/companies
+const getStudentCompanies = async (req, res) => {
+  try {
+    const studentId = req.params.id;
+    // Find all companies where this student is shortlisted
+    const companies = await Company.find({ shortlistedStudents: studentId });
+    
+    // Check queue to determine status
+    const Queue = require("../models/Queue.model");
+    const queueEntries = await Queue.find({ studentId });
+    const queueMap = queueEntries.reduce((acc, q) => {
+      acc[q.companyId.toString()] = q.status;
+      return acc;
+    }, {});
+
+    const mappedCompanies = companies.map(c => {
+      let status = "Pending";
+      const qStatus = queueMap[c._id.toString()];
+      if (qStatus === "offer_given") status = "Selected";
+      else if (qStatus === "rejected") status = "Rejected";
+
+      return {
+        id: c._id,
+        name: c.name,
+        day: c.day != null ? `Day ${c.day}` : "—",
+        slot: c.slot ? c.slot.charAt(0).toUpperCase() + c.slot.slice(1) : "—",
+        venue: c.venue || "Not Assigned",
+        status,
+        interviewDate: new Date().toISOString() // mock date or derive from day
+      };
+    });
+
+    res.json(mappedCompanies);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -155,20 +206,23 @@ const addCoco = async (req, res) => {
   }
 };
 
-// @desc    Add a new Student (create user + student) — simplified: only name + rollNumber required
+// @desc    Add a new Student (create user + student)
 // @route   POST /api/admin/students
 const addStudent = async (req, res) => {
   try {
-    const { name, rollNumber } = req.body;
-    if (!name || !rollNumber) return res.status(400).json({ message: "Name and Roll Number are required" });
+    console.log("[addStudent] Request body:", JSON.stringify(req.body));
+    const { name, rollNumber, email, phone } = req.body;
+    if (!name || !rollNumber || !email || !phone) return res.status(400).json({ message: "Name, Roll Number, Email ID, and Phone Number are required" });
 
     const instituteId = rollNumber;
-    const email = `${rollNumber.toLowerCase()}@placeiit.in`;
-    const password = "student123";
+    const finalEmail = email;
+
+    // Generate random 8-char password
+    const generatedPassword = crypto.randomBytes(4).toString("hex");
 
     // Check if user already exists
-    const existing = await User.findOne({ $or: [{ instituteId }, { email }] });
-    if (existing) return res.status(400).json({ message: `User with roll number "${rollNumber}" already exists` });
+    const existing = await User.findOne({ $or: [{ instituteId }, { email: finalEmail }] });
+    if (existing) return res.status(400).json({ message: `User with roll number "${rollNumber}" or email "${finalEmail}" already exists` });
 
     // Check if student record already exists
     const existingStudent = await Student.findOne({ rollNumber });
@@ -176,20 +230,39 @@ const addStudent = async (req, res) => {
 
     const user = await User.create({
       instituteId,
-      email,
-      password,
+      email: finalEmail,
+      password: generatedPassword,
       role: "student",
+      mustChangePassword: true,
     });
 
     const student = await Student.create({
       userId: user._id,
       name,
       rollNumber,
+      phone,
     });
     
     await emitStatsUpdate();
 
-    res.status(201).json({ message: "Student added successfully", student, credentials: { instituteId, password } });
+    let emailSent = false;
+    try {
+      await sendWelcomeEmail(finalEmail, name, rollNumber, generatedPassword);
+      emailSent = true;
+    } catch (err) {
+      console.error("[addStudent] Non-fatal error: Failed to send welcome email to", finalEmail, err);
+    }
+
+    const resMessage = emailSent 
+      ? "Student added successfully" 
+      : "Student added successfully (Warning: Welcome email could not be sent)";
+
+    res.status(201).json({ 
+      message: resMessage, 
+      student, 
+      credentials: { instituteId, password: generatedPassword },
+      emailSent
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -274,6 +347,25 @@ const uploadCocoExcel = async (req, res) => {
     const result = await excelService.processCocoExcel(upload._id, req.file.path);
     await emitStatsUpdate();
     res.json({ message: `${result.processed} CoCo(s) imported from Excel`, uploadId: upload._id, ...result });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Upload Excel - student import (add new students from Excel)
+// @route   POST /api/admin/upload/students
+const uploadStudentExcel = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    const upload = await ExcelUpload.create({
+      uploadedBy: req.user.id,
+      fileName: req.file.originalname,
+      filePath: req.file.path,
+      type: "student_import",
+    });
+    const result = await excelService.processStudentExcel(upload._id, req.file.path);
+    await emitStatsUpdate();
+    res.json({ message: `${result.processed} Student(s) imported from Excel`, uploadId: upload._id, ...result });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -531,8 +623,8 @@ const getCocoConflicts = async (req, res) => {
 
 module.exports = {
   getStats, getCompanies, addCompany, updateCompany,
-  searchStudents, getCocos, addCoco, addStudent,
+  searchStudents, getStudentCompanies, getCocos, addCoco, addStudent,
   assignCoco, removeCoco,
-  uploadCompanyExcel, uploadShortlistExcel, uploadCocoExcel, uploadCocoRequirementsExcel, getUploadStatus,
+  uploadCompanyExcel, uploadShortlistExcel, uploadCocoExcel, uploadStudentExcel, uploadCocoRequirementsExcel, getUploadStatus,
   shortlistStudents, getShortlistedStudents, autoAllocateCocos, getCocoConflicts
 };

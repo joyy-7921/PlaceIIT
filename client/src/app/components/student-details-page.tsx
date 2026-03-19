@@ -24,7 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select";
-
+import { useEffect } from "react";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 interface Company {
   id: string;
   name: string;
@@ -49,6 +51,7 @@ interface StudentDetailsPageProps {
   interviewWith?: string;
   interviewVenue?: string;
   queuedFor?: string;
+  fetchCompanies: () => Promise<any>;
   onBack: () => void;
 }
 
@@ -66,56 +69,27 @@ export function StudentDetailsPage({
   interviewWith,
   interviewVenue,
   queuedFor,
+  fetchCompanies,
   onBack
 }: StudentDetailsPageProps) {
-  // Mock data for shortlisted companies
-  const [companies, setCompanies] = useState<Company[]>([
-    {
-      id: "1",
-      name: "Google",
-      day: "Monday",
-      slot: "Morning (9 AM - 12 PM)",
-      venue: "Seminar Hall A",
-      status: "Selected",
-      interviewDate: "2026-01-25"
-    },
-    {
-      id: "2",
-      name: "Microsoft",
-      day: "Tuesday",
-      slot: "Afternoon (2 PM - 5 PM)",
-      venue: "Conference Room 2",
-      status: "Pending",
-      interviewDate: "2026-01-26"
-    },
-    {
-      id: "3",
-      name: "Amazon",
-      day: "Wednesday",
-      slot: "Morning (9 AM - 12 PM)",
-      venue: "Auditorium",
-      status: "Rejected",
-      interviewDate: "2026-01-27"
-    },
-    {
-      id: "4",
-      name: "Apple",
-      day: "Thursday",
-      slot: "Afternoon (2 PM - 5 PM)",
-      venue: "Tech Lab 1",
-      status: "Pending",
-      interviewDate: "2026-01-28"
-    },
-    {
-      id: "5",
-      name: "Meta",
-      day: "Friday",
-      slot: "Morning (9 AM - 12 PM)",
-      venue: "Innovation Hub",
-      status: "Selected",
-      interviewDate: "2026-01-29"
-    }
-  ]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [loading, setLoading] = useState(true);
+
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const data = await fetchCompanies();
+        setCompanies(Array.isArray(data) ? data : data.companies || []);
+      } catch (err: any) {
+        toast.error("Failed to load student's companies: " + (err.message || "Unknown error"));
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [fetchCompanies]);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -159,6 +133,14 @@ export function StudentDetailsPage({
         );
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-24 text-gray-500 gap-2">
+        <Loader2 className="h-6 w-6 animate-spin" /> Loading student details...
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

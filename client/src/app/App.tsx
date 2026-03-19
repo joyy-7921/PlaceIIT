@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, RequireAuth, useAuth } from "@/app/auth-context";
 import { SocketProvider } from "@/app/socket-context";
+import { Toaster } from "@/app/components/ui/sonner";
 
 // Layouts
 import { APCLayout } from "@/app/layouts/apc-layout";
@@ -9,6 +10,7 @@ import { CoCoLayout } from "@/app/layouts/coco-layout";
 
 // Login
 import { LoginPageRoute } from "@/app/routes/login-route";
+import { ChangePasswordRoute } from "@/app/routes/change-password-route";
 
 // APC route pages
 import { APCHomeRoute } from "@/app/routes/apc/home-route";
@@ -44,6 +46,11 @@ function AppRoutes() {
         <Routes>
           {/* Login */}
           <Route path="/" element={<LoginPageRoute />} />
+          <Route path="/change-password" element={
+            <RequireAuth>
+              <ChangePasswordRoute />
+            </RequireAuth>
+          } />
 
           {/* APC Portal */}
           <Route
@@ -57,7 +64,7 @@ function AppRoutes() {
             <Route index element={<APCHomeRoute />} />
             <Route path="students" element={<APCStudentsRoute />} />
             <Route path="students/:id" element={<APCStudentDetailsRoute />} />
-            <Route path="cocos" element={<APCCoCosRoute />} /> your phone number and emergency contacts to improve visibility.
+            <Route path="cocos" element={<APCCoCosRoute />} />
             <Route path="cocos/:id/schedule" element={<APCCoCoScheduleRoute />} />
             <Route path="companies" element={<APCCompaniesRoute />} />
             <Route path="companies/:id" element={<APCCompanyDetailsRoute />} />
@@ -110,6 +117,7 @@ function App() {
   return (
     <AuthProvider>
       <AppRoutes />
+      <Toaster richColors position="top-right" />
     </AuthProvider>
   );
 }

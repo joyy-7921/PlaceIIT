@@ -8,7 +8,7 @@ const companySchema = new mongoose.Schema(
     description: { type: String },
     day: { type: Number, required: true },
     slot: { type: String, enum: Object.values(SLOTS), required: true },
-    venue: { type: String },
+    venue: { type: String, required: true },
     mode: { type: String, enum: Object.values(INTERVIEW_MODES), default: "offline" },
     onlineLink: { type: String },
     assignedCocos: [{ type: mongoose.Schema.Types.ObjectId, ref: "Coordinator" }],

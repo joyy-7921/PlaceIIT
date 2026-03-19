@@ -25,6 +25,7 @@ export function APCStudentDetailsRoute() {
             inInterview={student.inInterview}
             interviewWith={student.interviewWith}
             interviewVenue={student.interviewVenue}
+            fetchCompanies={() => adminApi.getStudentCompanies(student.id)}
             onBack={() => navigate("/apc/students")}
         />
     );

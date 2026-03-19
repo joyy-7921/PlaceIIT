@@ -40,6 +40,7 @@ interface Company {
   name: string;
   day: string;
   slot: string;
+  venue?: string;
   cocoAssigned?: string;
 }
 
@@ -59,6 +60,7 @@ interface ManageCoCoPageProps {
       name: string;
       day: string;
       slot: string;
+      venue?: string;
     }>;
   }) => void;
 }
@@ -94,6 +96,7 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
     name: raw.name ?? "—",
     day: raw.day != null ? `Day ${raw.day}` : "—",
     slot: raw.slot ? raw.slot.charAt(0).toUpperCase() + raw.slot.slice(1) : "—",
+    venue: raw.venue ?? "Not Assigned",
   });
 
   const fetchAll = useCallback(async () => {

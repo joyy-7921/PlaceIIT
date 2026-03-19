@@ -72,7 +72,7 @@ async function uploadRequest<T = unknown>(
    ═══════════════════════════════════════════════════════════ */
 export interface LoginResponse {
     token: string;
-    user: { id: string; instituteId: string; role: string; email: string };
+    user: { id: string; instituteId: string; role: string; email: string; mustChangePassword?: boolean };
 }
 
 export const authApi = {
@@ -82,7 +82,33 @@ export const authApi = {
             body: JSON.stringify({ instituteId, password, role }),
         }),
 
-    getMe: () => request<{ _id: string; instituteId: string; role: string; email: string }>("/auth/me"),
+    getMe: () => request<{ _id: string; instituteId: string; role: string; email: string; mustChangePassword?: boolean }>("/auth/me"),
+
+    changePassword: (newPassword: string) =>
+        request<{ message: string; user: any }>("/auth/change-password", {
+            method: "POST",
+            body: JSON.stringify({ newPassword }),
+        }),
+
+    forgotPassword: {
+        sendOtp: (email: string) =>
+            request<{ message: string }>("/auth/forgot-password/send-otp", {
+                method: "POST",
+                body: JSON.stringify({ email }),
+            }),
+
+        verifyOtp: (email: string, otp: string) =>
+            request<{ message: string }>("/auth/forgot-password/verify-otp", {
+                method: "POST",
+                body: JSON.stringify({ email, otp }),
+            }),
+
+        resetPassword: (email: string, otp: string, newPassword: string) =>
+            request<{ message: string }>("/auth/forgot-password/reset", {
+                method: "POST",
+                body: JSON.stringify({ email, otp, newPassword }),
+            }),
+    },
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -143,6 +169,8 @@ export const cocoApi = {
         request("/coco/round", { method: "POST", body: JSON.stringify(data) }),
     searchStudents: (query: string) =>
         request(`/coco/students/search?q=${encodeURIComponent(query)}`),
+    getStudentCompanies: (studentId: string) =>
+        request(`/coco/students/${studentId}/companies`),
     addStudentToRound: (data: { studentId: string; companyId: string; roundId?: string; roundNumber?: number }) =>
         request("/coco/round/add-student", { method: "POST", body: JSON.stringify(data) }),
     uploadRoundExcel: (formData: FormData) =>
@@ -184,6 +212,8 @@ export const adminApi = {
         uploadRequest("/admin/upload/shortlist", formData),
     uploadCocoExcel: (formData: FormData) =>
         uploadRequest("/admin/upload/cocos", formData),
+    uploadStudentExcel: (formData: FormData) =>
+        uploadRequest("/admin/upload/students", formData),
     uploadCocoRequirementsExcel: (formData: FormData) =>
         uploadRequest("/admin/upload/coordinator-requirements", formData),
     getUploadStatus: (id: string) => request(`/admin/upload/${id}`),
@@ -191,6 +221,8 @@ export const adminApi = {
         request(`/admin/companies/${companyId}/students`),
     shortlistStudents: (companyId: string, rollNumbers: string[]) =>
         request("/admin/students/shortlist", { method: "POST", body: JSON.stringify({ companyId, rollNumbers }) }),
+    getStudentCompanies: (studentId: string) =>
+        request(`/admin/students/${studentId}/companies`),
     /** @deprecated use addCoco instead */
     registerUser: (data: Record<string, unknown>) =>
         request("/auth/register", { method: "POST", body: JSON.stringify(data) }),
