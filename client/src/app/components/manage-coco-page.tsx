@@ -136,16 +136,19 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
   }, [fetchAll]);
 
   const handleAddCoCo = async () => {
-    if (!newCoCoName) return;
+    if (!newCoCoName || !newCoCoEmail || !newCoCoRollNumber || !newCoCoPhone) {
+      toast.error("Please fill all required fields");
+      return;
+    }
     setSaving(true);
     try {
       const res: any = await adminApi.addCoco({
         name: newCoCoName,
-        email: newCoCoEmail || undefined,
-        rollNumber: newCoCoRollNumber || undefined,
-        contact: newCoCoPhone || undefined,
+        email: newCoCoEmail,
+        rollNumber: newCoCoRollNumber,
+        contact: newCoCoPhone,
       });
-      toast.success(`CoCo ${newCoCoName} added! Credentials: ID=${res.credentials?.instituteId}, Password=${res.credentials?.password}`);
+      toast.success(res.message || `CoCo ${newCoCoName} added! Credentials: ID=${res.credentials?.instituteId}, Password=${res.credentials?.password}`);
       setNewCoCoName("");
       setNewCoCoEmail("");
       setNewCoCoPhone("");
@@ -335,18 +338,18 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
                       <Input id="name" placeholder="Enter name" value={newCoCoName} onChange={(e) => setNewCoCoName(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="rollNumber">Roll Number</Label>
-                      <Input id="rollNumber" placeholder="Enter roll number (used as login ID)" value={newCoCoRollNumber} onChange={(e) => setNewCoCoRollNumber(e.target.value)} />
+                      <Label htmlFor="rollNumber">Roll Number *</Label>
+                      <Input id="rollNumber" placeholder="Enter roll number" value={newCoCoRollNumber} onChange={(e) => setNewCoCoRollNumber(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input id="email" type="email" placeholder="Enter email (auto-generated if empty)" value={newCoCoEmail} onChange={(e) => setNewCoCoEmail(e.target.value)} />
+                      <Label htmlFor="email">Email *</Label>
+                      <Input id="email" type="email" placeholder="Enter email" value={newCoCoEmail} onChange={(e) => setNewCoCoEmail(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="phone">Phone</Label>
-                      <Input id="phone" placeholder="Enter phone number" value={newCoCoPhone} onChange={(e) => setNewCoCoPhone(e.target.value)} />
+                      <Label htmlFor="phone">Phone *</Label>
+                      <Input id="phone" placeholder="Enter 10-digit phone number" value={newCoCoPhone} onChange={(e) => setNewCoCoPhone(e.target.value)} />
                     </div>
-                    <p className="text-xs text-gray-500">Default password: coco123</p>
+                    <p className="text-xs text-gray-500 mt-4">Username (cocoX) and random password will be auto-generated and sent via email.</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -362,13 +365,14 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
                     </div>
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                       <h4 className="font-semibold text-blue-900 mb-2 text-sm">Excel Format Requirements:</h4>
-                      <ul className="text-xs text-blue-800 space-y-1">
-                        <li>• Column: <strong>name</strong> (required)</li>
-                        <li>• Column: <strong>rollNumber</strong> (used as login ID)</li>
-                        <li>• Column: <strong>email</strong> (optional, auto-generated)</li>
-                        <li>• Column: <strong>password</strong> (optional, default: coco123)</li>
-                        <li>• Column: <strong>contact</strong> (optional)</li>
+                      <p className="text-xs text-blue-800 mb-2">Columns must be exactly in this order with these names:</p>
+                      <ul className="text-xs text-blue-800 space-y-1 list-decimal list-inside">
+                        <li><strong>Name</strong> (required)</li>
+                        <li><strong>Email</strong> (required, unique)</li>
+                        <li><strong>Roll Number</strong> (required, unique)</li>
+                        <li><strong>Phone Number</strong> (required, 10 digits)</li>
                       </ul>
+                      <p className="text-xs text-blue-700 mt-2 font-semibold">Usernames and secure passwords will be automatically generated and emailed to all Co-Cos.</p>
                     </div>
                   </div>
                 )}

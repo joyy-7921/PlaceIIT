@@ -6,7 +6,7 @@ const Coordinator = require("../models/Coordinator.model");
 const ExcelUpload = require("../models/ExcelUpload.model");
 
 const crypto = require("crypto");
-const { sendWelcomeEmail } = require("./email.service");
+const { sendWelcomeEmail, sendCocoWelcomeEmail } = require("./email.service");
 
 const processCompanyExcel = async (uploadId, filePath) => {
   try {
@@ -71,24 +71,82 @@ const processCocoExcel = async (uploadId, filePath) => {
   try {
     const wb = XLSX.readFile(filePath);
     const sheet = wb.Sheets[wb.SheetNames[0]];
+
+    // Validate headers exactly
+    const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    if (rawData.length === 0) throw new Error("Excel file is empty");
+    const headers = rawData[0].map(h => String(h).trim());
+    if (headers[0] !== "Name" || headers[1] !== "Email" || headers[2] !== "Roll Number" || headers[3] !== "Phone Number") {
+      throw new Error("Invalid Excel format. Required columns: Name, Email, Roll Number, Phone Number");
+    }
+
     const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
     let processed = 0;
     const problemList = [];
 
+    let nextX = await Coordinator.countDocuments() + 1;
+
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
-        const norm = {};
-        Object.keys(row).forEach(k => norm[k.trim().toLowerCase()] = row[k]);
-        const name = norm["name"] || "";
-        const roll = norm["roll"] || norm["rollnumber"] || "";
-        if (!name || !roll) { problemList.push(`Row ${i+2}: Missing Name or Roll`); continue; }
-        
-        const instituteId = roll;
-        const exist = await User.findOne({ instituteId });
-        if (exist) { problemList.push(`Row ${i+2}: User ${roll} exists`); continue; }
+        const name = String(row["Name"] || "").trim();
+        const email = String(row["Email"] || "").trim().toLowerCase();
+        const roll = String(row["Roll Number"] || "").trim();
+        const phone = String(row["Phone Number"] || "").trim();
 
-        const user = await User.create({ instituteId, email: `${roll}@placeiit.in`, password: "coco123", role: "coco" });
-        await Coordinator.create({ userId: user._id, name, rollNumber: roll });
+        if (!name || !email || !roll || !phone) { 
+            problemList.push(`Row ${i+2}: Missing one of required fields (Name, Email, Roll Number, Phone Number)`); 
+            continue; 
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            problemList.push(`Row ${i+2}: Invalid email format`);
+            continue;
+        }
+
+        const phoneRegex = /^\d{10}$/;
+        if (!phoneRegex.test(phone)) {
+            problemList.push(`Row ${i+2}: Invalid phone number format (must be 10 digits)`);
+            continue;
+        }
+        
+        const existEmail = await User.findOne({ email });
+        if (existEmail) { problemList.push(`Row ${i+2}: User with Email ${email} already exists`); continue; }
+
+        const existRoll = await Coordinator.findOne({ rollNumber: roll });
+        if (existRoll) { problemList.push(`Row ${i+2}: Coordinator with Roll Number ${roll} already exists`); continue; }
+
+        let instituteId = `coco${nextX}`;
+        while (await User.exists({ instituteId })) {
+          nextX++;
+          instituteId = `coco${nextX}`;
+        }
+        nextX++;
+
+        const generatedPassword = crypto.randomBytes(4).toString("hex");
+
+        const user = await User.create({ 
+            instituteId, 
+            email, 
+            password: generatedPassword, 
+            role: "coco",
+            mustChangePassword: true
+        });
+
+        await Coordinator.create({ 
+            userId: user._id, 
+            name, 
+            rollNumber: roll,
+            contact: phone
+        });
+
+        try {
+            await sendCocoWelcomeEmail(email, name, instituteId, generatedPassword);
+        } catch (err) {
+            console.error("[processCocoExcel] Failed to send email to", email, err);
+            problemList.push(`Row ${i+2}: Account created but welcome email failed to send to ${email}`);
+        }
+
         processed++;
     }
     await ExcelUpload.findByIdAndUpdate(uploadId, { status: "success", recordsProcessed: processed, problemList });

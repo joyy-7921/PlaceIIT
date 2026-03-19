@@ -78,4 +78,39 @@ const sendWelcomeEmail = async (to, name, roll, password) => {
   }
 };
 
-module.exports = { sendOtpEmail, sendWelcomeEmail };
+/**
+ * Send a welcome email with credentials to a newly onboarded Co-Co.
+ */
+const sendCocoWelcomeEmail = async (to, name, username, password) => {
+  const mailOptions = {
+    from: `"APC Portal" <${process.env.EMAIL_USER}>`,
+    to,
+    subject: "APC Portal - Co-Co Account Created",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 32px; border: 1px solid #e5e7eb; border-radius: 12px;">
+        <h2 style="color: #4338ca; margin-bottom: 16px;">Welcome to the APC Portal!</h2>
+        <p style="color: #374151;">Hello ${name},</p>
+        <p style="color: #374151;">Your Co-Co account has been created successfully.</p>
+        
+        <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 24px 0;">
+          <p style="margin: 0 0 12px 0; color: #111827;"><strong>Username:</strong> <span style="font-family: monospace; background: #fff; padding: 4px 8px; border-radius: 4px; border: 1px solid #d1d5db;">${username}</span></p>
+          <p style="margin: 0; color: #111827;"><strong>Temporary Password:</strong> <span style="font-family: monospace; background: #fff; padding: 4px 8px; border-radius: 4px; border: 1px solid #d1d5db;">${password}</span></p>
+        </div>
+
+        <p style="color: #b91c1c; font-weight: bold;">Please login and change your password immediately.</p>
+      </div>
+    `,
+  };
+
+  try {
+    console.log(`[Email] Sending Co-Co welcome email to: ${to}`);
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`[Email] Co-Co Welcome email sent successfully to ${to}. MessageId: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    console.error(`[Email Error] Failed to send Co-Co welcome email to ${to}:`, error);
+    throw error;
+  }
+};
+
+module.exports = { sendOtpEmail, sendWelcomeEmail, sendCocoWelcomeEmail };

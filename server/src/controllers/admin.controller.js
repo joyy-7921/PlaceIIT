@@ -173,34 +173,63 @@ const getCocos = async (req, res) => {
 // @route   POST /api/admin/cocos
 const addCoco = async (req, res) => {
   try {
-    const { name, email, rollNumber, contact, password } = req.body;
-    if (!name) return res.status(400).json({ message: "Name is required" });
+    const { name, email, rollNumber, contact } = req.body;
+    if (!name || !email || !rollNumber || !contact) return res.status(400).json({ message: "Name, Email, Roll Number, and Phone Number are required" });
 
-    const instituteId = rollNumber || name.replace(/\s+/g, "").toLowerCase();
-    const finalEmail = email || `${instituteId}@placeiit.in`;
-    const finalPassword = password || "coco123";
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return res.status(400).json({ message: "Invalid email format" });
 
-    // Check if user already exists
-    const existing = await User.findOne({ $or: [{ instituteId }, { email: finalEmail }] });
-    if (existing) return res.status(400).json({ message: "User already exists with that ID or email" });
+    // Validate phone number format (must be 10 digits)
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(contact)) return res.status(400).json({ message: "Invalid phone number format (must be 10 digits)" });
+
+    const finalEmail = email.toLowerCase();
+    
+    // Check if user already exists with this email or rollNumber
+    const existingEmail = await User.findOne({ email: finalEmail });
+    if (existingEmail) return res.status(400).json({ message: "User already exists with that email" });
+
+    const existingRoll = await Coordinator.findOne({ rollNumber });
+    if (existingRoll) return res.status(400).json({ message: "Coordinator already exists with that Roll Number" });
+
+    let nextX = await Coordinator.countDocuments() + 1;
+    let instituteId = `coco${nextX}`;
+    while (await User.exists({ instituteId })) {
+      nextX++;
+      instituteId = `coco${nextX}`;
+    }
+
+    const crypto = require("crypto");
+    const finalPassword = crypto.randomBytes(4).toString("hex");
 
     const user = await User.create({
       instituteId,
       email: finalEmail,
       password: finalPassword,
       role: "coco",
+      mustChangePassword: true
     });
 
     const coco = await Coordinator.create({
       userId: user._id,
       name,
-      rollNumber: rollNumber || undefined,
-      contact: contact || undefined,
+      rollNumber,
+      contact,
     });
     
     await emitStatsUpdate();
 
-    res.status(201).json({ message: "CoCo added successfully", coco, credentials: { instituteId, password: finalPassword } });
+    const { sendCocoWelcomeEmail } = require("../services/email.service");
+    try {
+      await sendCocoWelcomeEmail(finalEmail, name, instituteId, finalPassword);
+    } catch (emailErr) {
+      console.error("[addCoco] Failed to send email:", emailErr);
+      // Don't fail the request if email fails, just notify the admin
+      return res.status(201).json({ message: "CoCo added successfully, but failed to send welcome email", coco, credentials: { instituteId, password: finalPassword } });
+    }
+
+    res.status(201).json({ message: "CoCo added successfully and invitation email sent", coco, credentials: { instituteId, password: finalPassword } });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
