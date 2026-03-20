@@ -32,7 +32,7 @@ interface Panel {
 }
 
 interface RoundTrackingPageProps {
-  companyName: string;
+  companyName?: string;
   onBack: () => void;
 }
 
@@ -76,9 +76,18 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
     setLoading(true);
     try {
       const companyRes: any = await cocoApi.getAssignedCompany();
-      const companyObj = Array.isArray(companyRes)
-        ? companyRes.find((c: any) => (c.name ?? "").toLowerCase() === companyName.toLowerCase()) ?? companyRes[0]
-        : companyRes.company ?? companyRes;
+      const arr = Array.isArray(companyRes) ? companyRes : (companyRes.companies || (companyRes.company ? [companyRes.company] : []));
+
+      if (arr.length === 0) {
+        setLoading(false);
+        return;
+      }
+
+      let companyObj = companyName 
+        ? arr.find((c: any) => (c.name ?? "").toLowerCase() === companyName.toLowerCase())
+        : arr[0];
+
+      if (!companyObj) companyObj = arr[0];
 
       if (!companyObj) {
         setLoading(false);
@@ -331,6 +340,17 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
       <div className="flex items-center justify-center py-24 text-gray-400 gap-2">
         <Loader2 className="h-6 w-6 animate-spin" /> Loading round data…
       </div>
+    );
+  }
+
+  if (!companyId) {
+    return (
+      <Card className="bg-gray-50 border-dashed border-2 m-6">
+        <CardContent className="py-24 text-center flex flex-col items-center">
+            <h2 className="text-2xl font-bold text-gray-700">No company assignments</h2>
+            <p className="text-gray-500 mt-2">You cannot track rounds because no company is assigned to you.</p>
+        </CardContent>
+      </Card>
     );
   }
 

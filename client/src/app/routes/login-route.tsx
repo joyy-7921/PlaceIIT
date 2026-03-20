@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/app/auth-context";
 import { LoginPage } from "@/app/components/login-page";
@@ -64,10 +64,12 @@ export function LoginPageRoute() {
         }
     };
 
+  useEffect(() => {
     // If already logged in, redirect to the correct portal
     if (auth.isLoggedIn && auth.userRole) {
-        navigateToPortal(auth.userRole);
+      navigateToPortal(auth.userRole as UserRole);
     }
+  }, [auth.isLoggedIn, auth.userRole]);
 
     return <LoginPage onLogin={handleLogin} error={error} loading={loading} />;
 }

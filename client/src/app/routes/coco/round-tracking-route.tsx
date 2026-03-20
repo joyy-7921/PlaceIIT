@@ -4,7 +4,7 @@ import { RoundTrackingPage } from "@/app/components/coco/round-tracking-page";
 export function CoCoRoundTrackingRoute() {
     const navigate = useNavigate();
     const location = useLocation();
-    const companyName = location.state?.selectedCompany || "Google";
+    const companyName = location.state?.selectedCompany;
 
     return (
         <RoundTrackingPage

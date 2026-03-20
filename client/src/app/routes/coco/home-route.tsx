@@ -4,7 +4,7 @@ import { CoCoHomePage } from "@/app/components/coco/coco-home-page";
 export function CoCoHomeRoute() {
     const navigate = useNavigate();
     const location = useLocation();
-    const companyName = location.state?.selectedCompany || "Google";
+    const companyName = location.state?.selectedCompany;
 
     return (
         <CoCoHomePage
