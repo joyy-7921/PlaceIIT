@@ -82,6 +82,8 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
   const [showUnassignedOnly, setShowUnassignedOnly] = useState(false);
   const [saving, setSaving] = useState(false);
   const [unallotted, setUnallotted] = useState<any[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   const normalizeCoco = (raw: any): CoCo => ({
     id: raw._id ?? raw.id ?? "",
@@ -162,24 +164,46 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
     }
   };
 
-  const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const formData = new FormData();
-    formData.append("file", file);
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      const selected = Array.from(event.target.files);
+      setFiles((prev) => [...prev, ...selected]);
+    }
+    event.target.value = "";
+  };
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleConfirmUpload = async () => {
+    if (files.length === 0) return;
+    setUploading(true);
+    let errorCount = 0;
     try {
-      const res: any = await adminApi.uploadCocoExcel(formData);
-      toast.success(res.message || "CoCos imported from Excel successfully");
-      if (res.errors?.length > 0) {
-        toast.warning(`${res.errors.length} row(s) had issues. Check console for details.`);
-        console.warn("Excel import errors:", res.errors);
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res: any = await adminApi.uploadCocoExcel(formData);
+        if (res.errors?.length > 0) {
+          errorCount += res.errors.length;
+          console.warn(`Excel import errors in ${file.name}:`, res.errors);
+        }
       }
+      
+      toast.success("Co-Cos uploaded successfully");
+      if (errorCount > 0) {
+        toast.warning(`${errorCount} row(s) had issues across files. Check console.`);
+      }
+      
       setIsAddDialogOpen(false);
+      setFiles([]);
       await fetchAll();
     } catch (err: any) {
       toast.error(err.message ?? "Upload failed");
+    } finally {
+      setUploading(false);
     }
-    event.target.value = "";
   };
 
   const handleRemoveCoCo = async (id: string) => {
@@ -353,16 +377,41 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-indigo-400 transition-colors">
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-indigo-400 transition-colors relative">
+                      {uploading && (
+                        <div className="absolute inset-0 bg-white/50 z-10 flex flex-col items-center justify-center rounded-lg">
+                          <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mb-2" />
+                          <span className="text-sm font-medium text-indigo-900">Uploading...</span>
+                        </div>
+                      )}
                       <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                       <h3 className="font-semibold text-gray-900 mb-2">Upload Excel File</h3>
                       <p className="text-sm text-gray-500 mb-4">Upload an Excel file (.xlsx, .xls) with CoCo requirements</p>
-                      <input id="excel-upload" type="file" accept=".xlsx,.xls" onChange={handleExcelUpload} className="hidden" />
-                      <Button type="button" variant="outline" onClick={() => document.getElementById("excel-upload")?.click()}>
+                      <input id="excel-upload" type="file" multiple accept=".xlsx,.xls" onChange={handleFileSelect} className="hidden" />
+                      <Button type="button" variant="outline" onClick={() => document.getElementById("excel-upload")?.click()} disabled={uploading}>
                         <Upload className="h-4 w-4 mr-2" />
-                        Choose File
+                        Choose Files
                       </Button>
                     </div>
+
+                    {files.length > 0 && (
+                      <div className="bg-white border rounded-lg p-4 space-y-2">
+                        <h4 className="text-sm font-semibold text-gray-700">Selected Files:</h4>
+                        {files.map((file, idx) => (
+                          <div key={idx} className="flex items-center justify-between bg-gray-50 p-2 rounded text-sm text-gray-600 border">
+                            <span className="truncate">{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeFile(idx)}
+                              className="text-red-500 hover:text-red-700 p-1"
+                              disabled={uploading}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                       <h4 className="font-semibold text-blue-900 mb-2 text-sm">Excel Format Requirements:</h4>
                       <p className="text-xs text-blue-800 mb-2">Columns must be exactly in this order with these names:</p>
@@ -379,10 +428,22 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
               </div>
 
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => {
+                  setIsAddDialogOpen(false);
+                  setFiles([]);
+                }} disabled={uploading}>Cancel</Button>
                 {addMethod === "manual" && (
                   <Button onClick={handleAddCoCo} disabled={saving}>
                     {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}Add CoCo
+                  </Button>
+                )}
+                {addMethod === "excel" && (
+                  <Button onClick={handleConfirmUpload} disabled={files.length === 0 || uploading}>
+                    {uploading ? (
+                      <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Uploading...</>
+                    ) : (
+                      "Add Co-Cos"
+                    )}
                   </Button>
                 )}
               </DialogFooter>
