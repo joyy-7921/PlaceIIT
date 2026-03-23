@@ -3,7 +3,7 @@ const router = express.Router();
 const {
   getProfile, updateProfile, getMyCompanies,
   joinQueue, joinWalkIn, leaveQueue, getWalkIns, getQueuePosition,
-  getNotifications, markNotifRead,
+  getNotifications, markNotifRead, markAllNotifRead, clearAllNotifications,
   submitQuery, getMyQueries,
 } = require("../controllers/student.controller");
 const { protect } = require("../middlewares/auth.middleware");
@@ -20,7 +20,9 @@ router.post("/queue/leave", leaveQueue);
 router.get("/queue/:companyId", getQueuePosition);
 router.get("/walkins", getWalkIns);
 router.get("/notifications", getNotifications);
+router.put("/notifications/read-all", markAllNotifRead);
 router.put("/notifications/:id/read", markNotifRead);
+router.delete("/notifications", clearAllNotifications);
 router.post("/queries", submitQuery);
 router.get("/queries", getMyQueries);
 

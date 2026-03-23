@@ -49,9 +49,7 @@ export function StudentNavbar({ onNavigate, userName, unreadNotifications = 0 }:
                   <Icon className="h-4 w-4 mr-2" />
                   {item.label}
                   {isNotifications && unreadNotifications > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-semibold">
-                      {unreadNotifications > 9 ? "9+" : unreadNotifications}
-                    </span>
+                    <span className="absolute -top-0.5 -right-0.5 bg-red-600 rounded-full h-2.5 w-2.5" />
                   )}
                 </Button>
               );
@@ -107,9 +105,7 @@ export function StudentNavbar({ onNavigate, userName, unreadNotifications = 0 }:
                 <Icon className="h-4 w-4 mr-1" />
                 {item.label}
                 {isNotifications && unreadNotifications > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-semibold">
-                    {unreadNotifications > 9 ? "9+" : unreadNotifications}
-                  </span>
+                  <span className="absolute -top-0.5 -right-0.5 bg-red-600 rounded-full h-2.5 w-2.5" />
                 )}
               </Button>
             );

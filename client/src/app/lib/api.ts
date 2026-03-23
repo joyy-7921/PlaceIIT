@@ -139,6 +139,10 @@ export const studentApi = {
     getNotifications: () => request("/student/notifications"),
     markNotifRead: (id: string) =>
         request(`/student/notifications/${id}/read`, { method: "PUT" }),
+    markAllNotifRead: () =>
+        request("/student/notifications/read-all", { method: "PUT" }),
+    clearAllNotifications: () =>
+        request("/student/notifications", { method: "DELETE" }),
     submitQuery: (data: { subject: string; message: string }) =>
         request("/student/queries", { method: "POST", body: JSON.stringify(data) }),
     getMyQueries: () => request("/student/queries"),

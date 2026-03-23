@@ -217,9 +217,31 @@ const getMyQueries = async (req, res) => {
   }
 };
 
+// @desc    Mark all notifications as read
+// @route   PUT /api/student/notifications/read-all
+const markAllNotifRead = async (req, res) => {
+  try {
+    await Notification.updateMany({ recipientId: req.user.id, isRead: false }, { isRead: true });
+    res.json({ message: "All notifications marked as read" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Clear all notifications
+// @route   DELETE /api/student/notifications
+const clearAllNotifications = async (req, res) => {
+  try {
+    await Notification.deleteMany({ recipientId: req.user.id });
+    res.json({ message: "All notifications cleared" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getProfile, updateProfile, getMyCompanies,
   joinQueue, joinWalkIn, leaveQueue, getWalkIns, getQueuePosition,
-  getNotifications, markNotifRead,
+  getNotifications, markNotifRead, markAllNotifRead, clearAllNotifications,
   submitQuery, getMyQueries,
 };
