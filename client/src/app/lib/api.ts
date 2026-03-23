@@ -130,12 +130,36 @@ export const studentApi = {
     /** @deprecated use joinWalkInQueue */
     joinWalkIn: (companyId: string) =>
         request("/student/queue/walkin", { method: "POST", body: JSON.stringify({ companyId }) }),
+    /** Leave the queue for a company */
+    leaveQueue: (companyId: string) =>
+        request("/student/queue/leave", { method: "POST", body: JSON.stringify({ companyId }) }),
     getQueuePosition: (companyId: string) =>
         request(`/student/queue/${companyId}`),
     getWalkIns: () => request("/student/walkins"),
     getNotifications: () => request("/student/notifications"),
     markNotifRead: (id: string) =>
         request(`/student/notifications/${id}/read`, { method: "PUT" }),
+    markAllNotifRead: () =>
+        request("/student/notifications/read-all", { method: "PUT" }),
+    clearAllNotifications: () =>
+        request("/student/notifications", { method: "DELETE" }),
+    submitQuery: (data: { subject: string; message: string }) =>
+        request("/student/queries", { method: "POST", body: JSON.stringify(data) }),
+    getMyQueries: () => request("/student/queries"),
+    uploadResume: (file: File) => {
+        const formData = new FormData();
+        formData.append("resume", file);
+        const token = getToken();
+        return fetch(`${API_BASE}/student/resume`, {
+            method: "POST",
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            body: formData,
+        }).then(async (res) => {
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message ?? "Upload failed");
+            return data;
+        });
+    },
 };
 
 /* ═══════════════════════════════════════════════════════════
