@@ -24,6 +24,7 @@ interface Company {
   priority: number;
   round: number;
   isWalkin?: boolean;
+  isInQueue?: boolean;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -49,6 +50,8 @@ export function StudentHomePage() {
     const statusRaw: string = queueEntry?.status ?? raw.status ?? "upcoming";
     const status = (statusRaw === "in_queue" ? "in-queue" : statusRaw) as Company["status"];
 
+    const isInQueue = !!(queueEntry && ["in_queue", "in-queue"].includes(queueEntry.status ?? ""));
+
     return {
       id: raw._id ?? raw.id ?? raw.company?._id ?? String(index),
       name: raw.name ?? raw.company?.name ?? "—",
@@ -64,6 +67,7 @@ export function StudentHomePage() {
       priority: raw.priorityOrder ?? raw.order ?? index + 1,
       round: raw.currentRound ?? raw.company?.currentRound ?? 1,
       isWalkin,
+      isInQueue,
     };
   };
 
@@ -155,6 +159,16 @@ export function StudentHomePage() {
     }
   };
 
+  const handleLeaveQueue = async (companyId: string) => {
+    try {
+      await studentApi.leaveQueue(companyId);
+      toast.success("Left queue successfully");
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to leave queue");
+    }
+  };
+
   const scrollToWalkin = () => walkinRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const sortedCompanies = [...companies].sort((a, b) => {
@@ -235,12 +249,24 @@ export function StudentHomePage() {
           <Clock className="h-4 w-4 mr-2 text-gray-400" /> {company.day} — {company.slot}
         </div>
 
-        {(company.status === "in-queue" || (company.status as any) === "in_queue") && company.queuePosition && (
+        {/* Queue Counter — always visible */}
+        <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center text-sm">
+              <Users className="h-4 w-4 mr-2 text-gray-600" />
+              <span className="text-gray-700">Current Queue Count:</span>
+            </div>
+            <span className="font-semibold text-gray-700">{company.totalInQueue ?? 0} students</span>
+          </div>
+        </div>
+
+        {/* Queue Position — only for card where student IS in the queue */}
+        {company.isInQueue && company.queuePosition && (
           <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
             <div className="flex items-center justify-between">
               <div className="flex items-center text-sm">
                 <Users className="h-4 w-4 mr-2 text-blue-600" />
-                <span className="text-gray-700">Queue Position:</span>
+                <span className="text-gray-700">Your Position in Queue:</span>
               </div>
               <span className="font-semibold text-blue-700">
                 {company.queuePosition}{company.totalInQueue ? ` of ${company.totalInQueue}` : ""}
@@ -249,27 +275,15 @@ export function StudentHomePage() {
           </div>
         )}
 
-        {company.status === "upcoming" && company.currentQueue !== undefined && (
-          <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center text-sm">
-                <Users className="h-4 w-4 mr-2 text-gray-600" />
-                <span className="text-gray-700">Current Queue:</span>
-              </div>
-              <span className="font-semibold text-gray-700">{company.currentQueue} students</span>
-            </div>
-          </div>
-        )}
-
+        {/* Queue Action Buttons */}
         <div className="flex gap-2 pt-2">
-          {company.status === "upcoming" && !company.isWalkin && (
-            <Button className="flex-1 bg-indigo-600 hover:bg-indigo-700" onClick={() => handleJoinQueue(company.id)}>
-              <Users className="h-4 w-4 mr-2" /> Join Queue
+          {company.isInQueue ? (
+            <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={() => handleLeaveQueue(company.id)}>
+              <Users className="h-4 w-4 mr-2" /> Exit Queue
             </Button>
-          )}
-          {company.status === "upcoming" && company.isWalkin && (
-            <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => handleJoinWalkin(company.id)}>
-              <Users className="h-4 w-4 mr-2" /> Join Walk-in Queue
+          ) : (
+            <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={() => company.isWalkin ? handleJoinWalkin(company.id) : handleJoinQueue(company.id)}>
+              <Users className="h-4 w-4 mr-2" /> Join Queue
             </Button>
           )}
         </div>

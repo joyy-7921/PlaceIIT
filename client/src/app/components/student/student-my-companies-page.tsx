@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/ca
 import { Badge } from "@/app/components/ui/badge";
 import { Input } from "@/app/components/ui/input";
 import { Building2, MapPin, Clock, CheckCircle, AlertCircle, Calendar, Search, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 import { studentApi } from "@/app/lib/api";
 
 interface Company {
@@ -22,6 +23,8 @@ interface Company {
 
 export function StudentMyCompaniesPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedDay, setSelectedDay] = useState("all");
+  const [selectedSlot, setSelectedSlot] = useState("all");
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -55,14 +58,19 @@ export function StudentMyCompaniesPage() {
 
   useEffect(() => { fetchCompanies(); }, [fetchCompanies]);
 
+  const uniqueDays = [...new Set(companies.map((c) => c.day))].filter(Boolean);
+  const uniqueSlots = [...new Set(companies.map((c) => c.slot))].filter(Boolean);
+
   const filteredCompanies = companies.filter((company) => {
     const query = searchQuery.toLowerCase();
-    return (
+    const matchesSearch =
       company.name.toLowerCase().includes(query) ||
       company.day.toLowerCase().includes(query) ||
       company.slot.toLowerCase().includes(query) ||
-      company.round.toString().includes(query)
-    );
+      company.round.toString().includes(query);
+    const matchesDay = selectedDay === "all" || company.day === selectedDay;
+    const matchesSlot = selectedSlot === "all" || company.slot === selectedSlot;
+    return matchesSearch && matchesDay && matchesSlot;
   });
 
   const getStatusBadge = (status: string) => {
@@ -101,14 +109,34 @@ export function StudentMyCompaniesPage() {
 
       <Card>
         <CardContent className="pt-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-            <Input
-              placeholder="Search by company name, day, slot, or round…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+              <Input
+                placeholder="Search by company name, day, slot, or round…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={selectedDay} onValueChange={setSelectedDay}>
+              <SelectTrigger className="w-full md:w-48">
+                <SelectValue placeholder="Select Day" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Days</SelectItem>
+                {uniqueDays.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={selectedSlot} onValueChange={setSelectedSlot}>
+              <SelectTrigger className="w-full md:w-48">
+                <SelectValue placeholder="Select Slot" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Slots</SelectItem>
+                {uniqueSlots.map((s) => <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
