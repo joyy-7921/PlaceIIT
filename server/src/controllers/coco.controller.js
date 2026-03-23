@@ -150,9 +150,25 @@ const getPanels = async (req, res) => {
 // @route   PUT /api/coco/panel/:id
 const updatePanel = async (req, res) => {
   try {
-    const { roundId, venue, status } = req.body;
+    const { roundId, roundNumber, venue, status } = req.body;
+    const panelInfo = await Panel.findById(req.params.id);
+    if (!panelInfo) return res.status(404).json({ message: "Panel not found" });
+
+    let resolvedRoundId = roundId;
+    if (!resolvedRoundId && roundNumber) {
+      let round = await InterviewRound.findOne({ companyId: panelInfo.companyId, roundNumber });
+      if (!round) {
+        round = await InterviewRound.create({
+          companyId: panelInfo.companyId,
+          roundNumber,
+          roundName: `Round ${roundNumber}`,
+        });
+      }
+      resolvedRoundId = round._id;
+    }
+
     const updateData = {};
-    if (roundId !== undefined) updateData.roundId = roundId;
+    if (resolvedRoundId !== undefined) updateData.roundId = resolvedRoundId;
     if (venue !== undefined) updateData.venue = venue;
     if (status !== undefined) updateData.status = status;
     

@@ -21,7 +21,7 @@ interface Student {
   rollNo: string;
   contact: string;
   emergencyContact: string;
-  status: "in-queue" | "in-interview" | "completed";
+  status: "in-queue" | "in-interview" | "completed" | "unassigned";
   round: number;
   position: number;
   locationStatus: "in-queue" | "in-interview" | "no-show" | "completed-day";
@@ -75,6 +75,7 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
   // Edit Panel Form
   const [editingPanel, setEditingPanel] = useState<Panel | null>(null);
   const [editPanelRoom, setEditPanelRoom] = useState("");
+  const [editPanelRound, setEditPanelRound] = useState("1");
 
   // Add to Queue search state
   const [isAddQueueOpen, setIsAddQueueOpen] = useState(false);
@@ -85,12 +86,13 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
   const [addingStudentId, setAddingStudentId] = useState<string | null>(null);
 
   const normalizeStudent = (raw: any, i: number): Student => {
-    const qe = raw.queueEntry ?? raw;
-    const statusRaw: string = qe.status ?? "in-queue";
+    const hasQueueEntry = !!raw.queueEntry;
+    const statusRaw: string = hasQueueEntry ? raw.queueEntry.status : "unassigned";
     const statusMap: Record<string, Student["status"]> = {
       in_queue: "in-queue", waiting: "in-queue", "in-queue": "in-queue",
       in_interview: "in-interview", interviewing: "in-interview", "in-interview": "in-interview",
       completed: "completed", done: "completed",
+      unassigned: "unassigned",
     };
     return {
       id: raw._id ?? raw.id ?? raw.student?._id ?? String(i),
@@ -98,10 +100,10 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
       rollNo: raw.rollNumber ?? raw.student?.rollNumber ?? "—",
       contact: raw.contact ?? raw.student?.contact ?? "—",
       emergencyContact: raw.emergencyContact?.phone ?? raw.student?.emergencyContact?.phone ?? "—",
-      status: statusMap[statusRaw] ?? "in-queue",
+      status: statusMap[statusRaw] ?? "unassigned",
       round: raw.round ?? raw.currentRound ?? 1,
       position: raw.position ?? raw.queueEntry?.position ?? 0,
-      locationStatus: (statusMap[statusRaw] ?? "in-queue") as Student["locationStatus"],
+      locationStatus: (statusMap[statusRaw] ?? "unassigned") as Student["locationStatus"],
       currentCompany: raw.companyName ?? companyName,
       userId: raw.userId?._id ?? (typeof raw.userId === 'string' ? raw.userId : '') ?? "",
     };
@@ -264,7 +266,7 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
   const handleEditPanelSave = async () => {
     if (!editingPanel) return;
     try {
-       await cocoApi.updatePanel(editingPanel.id, { venue: editPanelRoom });
+       await cocoApi.updatePanel(editingPanel.id, { venue: editPanelRoom, roundNumber: parseInt(editPanelRound) });
        toast.success("Panel updated");
        setEditingPanel(null);
        fetchData();
@@ -307,6 +309,7 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
       case "in-queue": return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200"><AlertCircle className="h-3 w-3 mr-1" />In Queue</Badge>;
       case "in-interview": return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><RotateCw className="h-3 w-3 mr-1" />In Interview</Badge>;
       case "completed": return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle className="h-3 w-3 mr-1" />Completed</Badge>;
+      case "unassigned": return <Badge className="bg-gray-100 text-gray-600 border-gray-200"><UserCheck className="h-3 w-3 mr-1" />Unassigned</Badge>;
       default: return null;
     }
   };
@@ -315,7 +318,7 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
     const matchesSearch =
       student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       student.rollNo.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRound = selectedRound === "all" || student.round === parseInt(selectedRound);
+    const matchesRound = selectedRound === "all" || student.round === parseInt(selectedRound) || student.status === "unassigned";
     const matchesStatus =
       statusFilter === "all" ||
       (statusFilter === "yet-to-interview" && student.status === "in-queue") ||
@@ -375,7 +378,7 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
                     </div>
                     <div className="flex items-center gap-2">
                        <Badge variant="outline" className="font-mono bg-gray-50">{panel.room}</Badge>
-                       <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-800" onClick={() => { setEditingPanel(panel); setEditPanelRoom(panel.room); }}>
+                       <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-800" onClick={() => { setEditingPanel(panel); setEditPanelRoom(panel.room); setEditPanelRound(panel.currentRound.toString()); }}>
                          <Edit className="h-4 w-4" />
                        </Button>
                     </div>
@@ -415,6 +418,19 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
               <label className="text-sm font-medium text-gray-700 block mb-1">Room / Venue</label>
               <Input placeholder="Room Number" value={editPanelRoom} onChange={(e) => setEditPanelRoom(e.target.value)} />
             </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Target Round</label>
+              <Select value={editPanelRound} onValueChange={setEditPanelRound}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Round" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: company.totalRounds }, (_, i) => i + 1).map((r) => (
+                    <SelectItem key={r} value={r.toString()}>Round {r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Button className="w-full bg-blue-600" onClick={handleEditPanelSave}>Save Changes</Button>
           </div>
         </DialogContent>
@@ -422,7 +438,7 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center"><Users className="h-5 w-5 mr-2 text-indigo-600" />Student Queue Tracker</CardTitle>
+          <CardTitle className="flex items-center"><Users className="h-5 w-5 mr-2 text-indigo-600" />Shortlisted Students</CardTitle>
           <Dialog open={isAddQueueOpen} onOpenChange={setIsAddQueueOpen}>
             <DialogTrigger asChild><Button className="bg-indigo-600 hover:bg-indigo-700"><UserPlus className="h-4 w-4 mr-2" />Add to Queue</Button></DialogTrigger>
             <DialogContent className="max-w-lg">
@@ -460,7 +476,7 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
           <div className="flex gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-              <Input placeholder="Filter queue students..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
+              <Input placeholder="Search shortlisted students..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
             </div>
             <Select value={selectedRound} onValueChange={setSelectedRound}>
               <SelectTrigger className="w-40"><SelectValue placeholder="All Rounds" /></SelectTrigger>
@@ -474,7 +490,8 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-48"><SelectValue placeholder="All Status" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
                 <SelectItem value="in-queue">In Queue</SelectItem>
                 <SelectItem value="in-interview">In Interview</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
@@ -496,16 +513,24 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
                 </div>
                 <div className="flex gap-2 mt-4 pt-4 border-t items-center justify-between">
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => handleSendNotification(student.id, "come")}><Send className="h-3 w-3 mr-1" /> Call to Queue</Button>
+                    {student.status === "unassigned" ? (
+                      <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={() => { setIsAddQueueOpen(true); setStudentSearchQuery(student.name); handleSearchStudents(); }}>
+                         <UserPlus className="h-3 w-3 mr-1" /> Add to Queue
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => handleSendNotification(student.id, "come")}><Send className="h-3 w-3 mr-1" /> Call to Queue</Button>
+                    )}
                   </div>
-                  <Select value={student.status} onValueChange={(v) => handleUpdateStatus(student.id, v as any)}>
-                      <SelectTrigger className="w-40 h-8 text-xs bg-gray-50 border-gray-200"><SelectValue placeholder="Override status..." /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="in-queue">Force In Queue</SelectItem>
-                        <SelectItem value="in-interview">Force Interviewing</SelectItem>
-                        <SelectItem value="completed">Force Completed</SelectItem>
-                      </SelectContent>
-                  </Select>
+                  {student.status !== "unassigned" && (
+                    <Select value={student.status} onValueChange={(v) => handleUpdateStatus(student.id, v as any)}>
+                        <SelectTrigger className="w-40 h-8 text-xs bg-gray-50 border-gray-200"><SelectValue placeholder="Override status..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="in-queue">Force In Queue</SelectItem>
+                          <SelectItem value="in-interview">Force Interviewing</SelectItem>
+                          <SelectItem value="completed">Force Completed</SelectItem>
+                        </SelectContent>
+                    </Select>
+                  )}
                 </div>
               </Card>
             ))}
