@@ -48,7 +48,11 @@ const getCompanies = async (req, res) => {
     if (slot) filter.slot = slot;
     if (search) filter.name = new RegExp(search, "i");
 
-    const companies = await Company.find(filter).populate("assignedCocos", "name rollNumber");
+    const companies = await Company.find(filter).populate({
+      path: "assignedCocos",
+      select: "name rollNumber userId",
+      populate: { path: "userId", select: "instituteId email" }
+    });
     res.json(companies);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -155,12 +159,13 @@ const getStudentCompanies = async (req, res) => {
 const getCocos = async (req, res) => {
   try {
     const cocos = await Coordinator.find()
-      .populate("userId", "email")
+      .populate("userId", "email instituteId")
       .populate("assignedCompanies", "name day slot");
     // Attach email to top-level for client convenience
     const result = cocos.map((c) => {
       const obj = c.toObject();
       obj.email = obj.userId?.email || "";
+      obj.instituteId = obj.userId?.instituteId || "";
       return obj;
     });
     res.json(result);

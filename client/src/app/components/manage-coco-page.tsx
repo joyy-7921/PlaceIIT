@@ -29,6 +29,7 @@ import { toast } from "sonner";
 
 interface CoCo {
   id: string;
+  instituteId?: string;
   name: string;
   email: string;
   phone: string;
@@ -87,6 +88,7 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
 
   const normalizeCoco = (raw: any): CoCo => ({
     id: raw._id ?? raw.id ?? "",
+    instituteId: raw.instituteId,
     name: raw.name ?? "—",
     email: raw.email ?? raw.user?.email ?? "—",
     phone: raw.contact ?? raw.phone ?? "—",
@@ -493,7 +495,9 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
             <Card key={coco.id} className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" onClick={() => handleCoCoCardClick(coco)}>
               <CardHeader>
                 <div className="flex items-start justify-between">
-                  <CardTitle className="text-lg font-bold text-gray-900">{coco.name}</CardTitle>
+                  <CardTitle className="text-lg font-bold text-gray-900">
+                    {coco.name} {coco.instituteId ? <span className="text-sm font-normal text-gray-500">({coco.instituteId})</span> : null}
+                  </CardTitle>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -595,7 +599,9 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
                           </SelectTrigger>
                           <SelectContent>
                             {cocos.map((coco) => (
-                              <SelectItem key={coco.id} value={coco.id}>{coco.name}</SelectItem>
+                              <SelectItem key={coco.id} value={coco.id}>
+                                {coco.name} {coco.instituteId ? `(${coco.instituteId})` : ""}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>

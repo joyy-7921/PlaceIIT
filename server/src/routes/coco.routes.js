@@ -5,7 +5,8 @@ const upload = multer({ dest: "uploads/" });
 const {
   getAssignedCompany, getShortlistedStudents, addStudentToQueue,
   updateStudentStatus, sendNotification, toggleWalkIn,
-  addPanel, getPanels, getRounds, addRound, getPredefinedNotifications,
+  addPanel, getPanels, updatePanel, assignPanelStudent, clearPanel,
+  getRounds, addRound, getPredefinedNotifications,
   searchAllStudents, addStudentToRound, uploadStudentsToRound,
   getCocoNotifications, markNotifRead, addStudentToCompany,
   promoteStudentsViaExcel,
@@ -28,6 +29,9 @@ router.get("/notifications/predefined", getPredefinedNotifications);
 router.get("/notifications", getCocoNotifications);
 router.put("/notifications/:id/read", markNotifRead);
 router.post("/panel", addPanel);
+router.put("/panel/:id", updatePanel);
+router.put("/panel/:id/assign", assignPanelStudent);
+router.put("/panel/:id/clear", clearPanel);
 router.post("/round", addRound);
 router.post("/round/add-student", addStudentToRound);
 router.post("/round/upload-students", upload.single("file"), uploadStudentsToRound);

@@ -165,6 +165,12 @@ export const cocoApi = {
         request(`/coco/notifications/${id}/read`, { method: "PUT" }),
     addPanel: (data: Record<string, unknown>) =>
         request("/coco/panel", { method: "POST", body: JSON.stringify(data) }),
+    updatePanel: (panelId: string, data: Record<string, unknown>) =>
+        request(`/coco/panel/${panelId}`, { method: "PUT", body: JSON.stringify(data) }),
+    assignPanelStudent: (panelId: string, data: { studentId: string }) =>
+        request(`/coco/panel/${panelId}/assign`, { method: "PUT", body: JSON.stringify(data) }),
+    clearPanel: (panelId: string) =>
+        request(`/coco/panel/${panelId}/clear`, { method: "PUT" }),
     addRound: (data: Record<string, unknown>) =>
         request("/coco/round", { method: "POST", body: JSON.stringify(data) }),
     searchStudents: (query: string) =>

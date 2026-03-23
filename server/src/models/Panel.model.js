@@ -8,6 +8,8 @@ const panelSchema = new mongoose.Schema(
     interviewers: [{ type: String }], // Names of interviewers
     venue: { type: String },
     isActive: { type: Boolean, default: true },
+    status: { type: String, enum: ["occupied", "unoccupied"], default: "unoccupied" },
+    currentStudent: { type: mongoose.Schema.Types.ObjectId, ref: "Student" },
   },
   { timestamps: true }
 );
