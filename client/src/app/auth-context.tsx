@@ -26,6 +26,7 @@ interface AuthState {
     /** Whether the user is required to change their password */
     userMustChangePassword: boolean;
     setUserMustChangePassword: (val: boolean) => void;
+    isMainAdmin: boolean;
     /** legacy mock login for testing without server */
     mockLogin: (role: UserRole, id: string, name: string) => void;
     // Notification counts (shared state)
@@ -50,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [userName, setUserName] = useState("");
     const [token, setTokenState] = useState<string | null>(null);
     const [userMustChangePassword, setUserMustChangePassword] = useState(false);
+    const [isMainAdmin, setIsMainAdmin] = useState(false);
     const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
     const [cocoUnreadNotificationsCount, setCocoUnreadNotificationsCount] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -66,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     setUserId(user._id);
                     setUserName(user.instituteId);
                     setUserMustChangePassword(!!user.mustChangePassword);
+                    setIsMainAdmin(!!user.isMainAdmin);
                     setIsLoggedIn(true);
                 })
                 .catch(() => {
@@ -88,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUserId(res.user.id);
             setUserName(res.user.instituteId);
             setUserMustChangePassword(!!res.user.mustChangePassword);
+            setIsMainAdmin(!!res.user.isMainAdmin);
             setIsLoggedIn(true);
             return { success: true };
         } catch (err: unknown) {
@@ -112,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUserId("");
         setUserName("");
         setUserMustChangePassword(false);
+        setIsMainAdmin(false);
         setUnreadNotificationsCount(0);
         setCocoUnreadNotificationsCount(0);
     };
@@ -136,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 logout,
                 userMustChangePassword,
                 setUserMustChangePassword,
+                isMainAdmin,
                 mockLogin,
                 unreadNotificationsCount,
                 setUnreadNotificationsCount,

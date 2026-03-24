@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
+import { Input } from "@/app/components/ui/input";
+import { Label } from "@/app/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/app/components/ui/dialog";
 import { StatsCard } from "@/app/components/stats-card";
 import {
   Users,
@@ -28,6 +31,7 @@ interface APCHomePageProps {
     companies: number;
   };
   onNavigate: (page: string) => void;
+  isMainAdmin: boolean;
 }
 
 interface ScheduleItem {
@@ -39,7 +43,7 @@ interface ScheduleItem {
   status: string;
 }
 
-export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
+export function APCHomePage({ userName, stats, onNavigate, isMainAdmin }: APCHomePageProps) {
   const { socket } = useSocket();
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [loadingSchedule, setLoadingSchedule] = useState(true);
@@ -78,8 +82,6 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
       socket.off("queue:updated", refresh);
     };
   }, [socket, fetchSchedule]);
-
-
 
   const getStatusBadge = (status: string) => {
     if (status === "ongoing") {
@@ -224,6 +226,16 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
               <User className="h-6 w-6 text-blue-600" />
               <span className="text-sm font-medium">My Profile</span>
             </Button>
+            {isMainAdmin && (
+              <Button
+                variant="outline"
+                className="h-auto py-4 flex-col gap-2 bg-white hover:bg-emerald-50 hover:border-emerald-300"
+                onClick={() => onNavigate("manage-apcs")}
+              >
+                <Users className="h-6 w-6 text-emerald-600" />
+                <span className="text-sm font-medium">Manage APCs</span>
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
