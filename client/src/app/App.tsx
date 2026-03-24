@@ -21,6 +21,7 @@ import { APCCoCoScheduleRoute } from "@/app/routes/apc/coco-schedule-route";
 import { APCCompaniesRoute } from "@/app/routes/apc/companies-route";
 import { APCCompanyDetailsRoute } from "@/app/routes/apc/company-details-route";
 import { APCProfileRoute } from "@/app/routes/apc/profile-route";
+import { APCApcsRoute } from "@/app/routes/apc/apcs-route";
 
 // Student route pages
 import { StudentHomeRoute } from "@/app/routes/student/home-route";
@@ -65,6 +66,7 @@ function AppRoutes() {
             <Route path="students" element={<APCStudentsRoute />} />
             <Route path="students/:id" element={<APCStudentDetailsRoute />} />
             <Route path="cocos" element={<APCCoCosRoute />} />
+            <Route path="apcs" element={<APCApcsRoute />} />
             <Route path="cocos/:id/schedule" element={<APCCoCoScheduleRoute />} />
             <Route path="companies" element={<APCCompaniesRoute />} />
             <Route path="companies/:id" element={<APCCompanyDetailsRoute />} />
