@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/ca
 import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
+
 import { Search, Building2, MapPin, Clock, Users, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { studentApi } from "@/app/lib/api";
 import { useSocket } from "@/app/socket-context";
@@ -39,7 +39,6 @@ const STATUS_LABEL: Record<string, string> = {
 export function StudentHomePage() {
   const { socket } = useSocket();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedSlot, setSelectedSlot] = useState("all");
   const [companies, setCompanies] = useState<Company[]>([]);
   const [walkinCompanies, setWalkinCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -177,15 +176,10 @@ export function StudentHomePage() {
     return diff !== 0 ? diff : a.priority - b.priority;
   });
 
-  const filteredCompanies = sortedCompanies.filter((company) => {
-    const matchesSearch =
-      company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      company.role.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesSlot = selectedSlot === "all" || company.slot === selectedSlot;
-    return matchesSearch && matchesSlot;
-  });
-
-  const uniqueSlots = [...new Set([...companies, ...walkinCompanies].map((c) => c.slot))].filter(Boolean);
+  const filteredCompanies = sortedCompanies.filter((company) =>
+    company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    company.role.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const renderCompanyCard = (company: Company) => (
     <Card key={company.id} className="hover:shadow-lg transition-shadow">
@@ -246,7 +240,7 @@ export function StudentHomePage() {
           <MapPin className="h-4 w-4 mr-2 text-gray-400" /> Venue: {company.venue}
         </div>
         <div className="flex items-center text-sm text-gray-600">
-          <Clock className="h-4 w-4 mr-2 text-gray-400" /> {company.day} — {company.slot}
+          <Clock className="h-4 w-4 mr-2 text-gray-400" /> {company.day} — {company.slot.charAt(0).toUpperCase() + company.slot.slice(1)}
         </div>
 
         {/* Queue Counter — always visible */}
@@ -309,15 +303,6 @@ export function StudentHomePage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <Input placeholder="Search by company name or role…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
             </div>
-            <Select value={selectedSlot} onValueChange={setSelectedSlot}>
-              <SelectTrigger className="w-full md:w-48">
-                <SelectValue placeholder="Select Slot" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Slots</SelectItem>
-                {uniqueSlots.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
           </div>
         </CardContent>
       </Card>

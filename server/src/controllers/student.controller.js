@@ -79,16 +79,7 @@ const getMyCompanies = async (req, res) => {
       priorityMap
     );
 
-    // Also fetch walk-in companies visible to all students
-    const walkInCompanies = await Company.find({ isWalkInEnabled: true, isActive: true });
-
-    // Merge: deduplicate by company ID
-    const shortlistedIds = new Set(sorted.map((c) => c._id.toString()));
-    const extraWalkins = walkInCompanies
-      .filter((w) => !shortlistedIds.has(w._id.toString()))
-      .map((w) => ({ ...w.toObject(), companyId: w._id, isWalkInEnabled: true }));
-
-    const allCompanies = [...sorted, ...extraWalkins];
+    const allCompanies = sorted;
 
     // Attach queue info for each company
     const result = await Promise.all(
@@ -101,7 +92,16 @@ const getMyCompanies = async (req, res) => {
           companyId: company._id,
           status: "in_queue",
         });
-        return { ...company, queueEntry, totalInQueue };
+        let liveQueueEntry = queueEntry ? queueEntry.toObject() : null;
+        if (liveQueueEntry && liveQueueEntry.status === "in_queue") {
+          const ahead = await Queue.countDocuments({
+            companyId: company._id,
+            status: "in_queue",
+            position: { $lt: liveQueueEntry.position },
+          });
+          liveQueueEntry = { ...liveQueueEntry, position: ahead + 1 };
+        }
+        return { ...company, queueEntry: liveQueueEntry, totalInQueue };
       })
     );
 
@@ -172,7 +172,16 @@ const getWalkIns = async (req, res) => {
         const queueEntry = student
           ? await Queue.findOne({ companyId: c._id, studentId: student._id })
           : null;
-        return { ...c.toObject(), totalInQueue, queueEntry };
+        let liveQueueEntry = queueEntry ? queueEntry.toObject() : null;
+        if (liveQueueEntry && liveQueueEntry.status === "in_queue") {
+          const ahead = await Queue.countDocuments({
+            companyId: c._id,
+            status: "in_queue",
+            position: { $lt: liveQueueEntry.position },
+          });
+          liveQueueEntry = { ...liveQueueEntry, position: ahead + 1 };
+        }
+        return { ...c.toObject(), totalInQueue, queueEntry: liveQueueEntry };
       })
     );
 

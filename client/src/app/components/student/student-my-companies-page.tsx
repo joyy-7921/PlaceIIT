@@ -199,7 +199,7 @@ export function StudentMyCompaniesPage() {
                   </div>
                   <div className="flex items-center text-sm text-gray-600">
                     <Clock className="h-4 w-4 mr-2 text-gray-400" />
-                    {company.day} — {company.slot}
+                    {company.day} — {company.slot.charAt(0).toUpperCase() + company.slot.slice(1)}
                   </div>
                 </div>
                 {company.interviewDate && (

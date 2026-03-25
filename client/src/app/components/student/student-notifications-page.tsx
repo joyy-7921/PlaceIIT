@@ -257,7 +257,7 @@ export function StudentNotificationsPage() {
               <Input placeholder="Search notifications…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
             </div>
             <Select value={selectedFilter} onValueChange={setSelectedFilter}>
-              <SelectTrigger className="w-full md:w-48"><SelectValue placeholder="Filter by type" /></SelectTrigger>
+              <SelectTrigger className="w-full md:w-48"><SelectValue placeholder="Filter by Type" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="success">Success</SelectItem>
