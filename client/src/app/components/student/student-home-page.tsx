@@ -4,7 +4,7 @@ import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 
-import { Search, Building2, MapPin, Clock, Users, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Search, Building2, MapPin, Clock, Users, CheckCircle, AlertCircle, Loader2, Mic } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 import { studentApi } from "@/app/lib/api";
 import { useSocket } from "@/app/socket-context";
@@ -226,21 +226,16 @@ export function StudentHomePage() {
             </div>
           </div>
           <div className="flex flex-col items-end space-y-2">
-            {company.status === "completed" && (
-              <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle className="h-3 w-3 mr-1" />Completed</Badge>
-            )}
-            {company.status === "offer_given" && (
-              <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">🎉 Offer Given</Badge>
-            )}
-            {company.status === "rejected" && (
-              <Badge className="bg-red-100 text-red-800 border-red-200">Rejected</Badge>
-            )}
-            {(company.status === "in-queue" || company.status === "in_queue" as any) && (
-              <Badge className="bg-blue-100 text-blue-800 border-blue-200"><Clock className="h-3 w-3 mr-1" />In Queue</Badge>
-            )}
-            {company.status === "upcoming" && (
-              <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200"><AlertCircle className="h-3 w-3 mr-1" />Upcoming</Badge>
-            )}
+            {(() => {
+              const qs = company.status as string;
+              if (qs === "in_queue" || qs === "in-queue")
+                return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><Users className="h-3 w-3 mr-1" />In-Queue</Badge>;
+              if (qs === "in_interview")
+                return <Badge className="bg-orange-100 text-orange-800 border-orange-200"><Mic className="h-3 w-3 mr-1" />In-Interview</Badge>;
+              if (qs === "completed" || qs === "offer_given" || qs === "rejected")
+                return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle className="h-3 w-3 mr-1" />Completed</Badge>;
+              return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200"><AlertCircle className="h-3 w-3 mr-1" />Pending</Badge>;
+            })()}
           </div>
         </div>
       </CardHeader>

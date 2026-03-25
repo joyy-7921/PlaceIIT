@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Badge } from "@/app/components/ui/badge";
 import { Input } from "@/app/components/ui/input";
-import { Building2, MapPin, Clock, CheckCircle, AlertCircle, Calendar, Search, Loader2 } from "lucide-react";
+import { Building2, MapPin, Clock, CheckCircle, AlertCircle, Calendar, Search, Loader2, Users, Mic } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 import { studentApi } from "@/app/lib/api";
 
@@ -15,6 +15,7 @@ interface Company {
   day: string;
   slot: string;
   status: "upcoming" | "completed" | "in-progress" | string;
+  queueStatus: string | null;
   priority: number;
   interviewDate: string;
   round: number;
@@ -37,6 +38,7 @@ export function StudentMyCompaniesPage() {
     day: raw.day != null ? `Day ${raw.day}` : raw.company?.day != null ? `Day ${raw.company.day}` : "—",
     slot: raw.slot ?? raw.company?.slot ?? "—",
     status: raw.status ?? "upcoming",
+    queueStatus: raw.queueEntry?.status ?? null,
     priority: raw.priorityOrder ?? raw.order ?? i + 1,
     interviewDate: raw.interviewDate ?? raw.company?.interviewDate ?? "",
     round: raw.currentRound ?? raw.company?.currentRound ?? 1,
@@ -74,17 +76,18 @@ export function StudentMyCompaniesPage() {
     return matchesSearch && matchesDay && matchesRound;
   });
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "completed":
-        return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle className="h-3 w-3 mr-1" />Completed</Badge>;
-      case "in-progress":
+  const getStatusBadge = (queueStatus: string | null) => {
+    switch (queueStatus) {
       case "in_queue":
-      case "in-queue":
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><Clock className="h-3 w-3 mr-1" />In Progress</Badge>;
-      case "upcoming":
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><Users className="h-3 w-3 mr-1" />In-Queue</Badge>;
+      case "in_interview":
+        return <Badge className="bg-orange-100 text-orange-800 border-orange-200"><Mic className="h-3 w-3 mr-1" />In-Interview</Badge>;
+      case "completed":
+      case "offer_given":
+      case "rejected":
+        return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle className="h-3 w-3 mr-1" />Completed</Badge>;
       default:
-        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200"><AlertCircle className="h-3 w-3 mr-1" />Upcoming</Badge>;
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200"><AlertCircle className="h-3 w-3 mr-1" />Pending</Badge>;
     }
   };
 
@@ -184,7 +187,7 @@ export function StudentMyCompaniesPage() {
                       <Badge variant="outline" className="text-xs">Priority {company.priority}</Badge>
                       <Badge variant="outline" className="text-xs">Round {company.round}</Badge>
                       {company.isWalkIn && <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">Walk-in</Badge>}
-                      {getStatusBadge(company.status)}
+                      {getStatusBadge(company.queueStatus)}
                     </div>
                     {company.role && <p className="text-sm text-gray-600">{company.role}</p>}
                   </div>

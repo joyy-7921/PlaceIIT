@@ -214,7 +214,12 @@ const getWalkIns = async (req, res) => {
       })
     );
 
-    res.json(result);
+    const terminalStatuses = ["completed", "offer_given", "rejected"];
+    const filteredResult = result.filter(
+      (c) => !c.queueEntry || !terminalStatuses.includes(c.queueEntry.status)
+    );
+
+    res.json(filteredResult);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
