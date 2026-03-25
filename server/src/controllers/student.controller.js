@@ -4,6 +4,8 @@ const Company = require("../models/Company.model");
 const Notification = require("../models/Notification.model");
 const Query = require("../models/Query.model");
 const User = require("../models/User.model");
+const path = require("path");
+const fs = require("fs");
 const { sortCompaniesByPriority, buildPriorityMap } = require("../utils/priorityHelper");
 const queueService = require("../services/queue.service");
 
@@ -49,9 +51,11 @@ const uploadResume = async (req, res) => {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
+    const resumePath = req.file.path.replace(/\\/g, '/');
+
     const student = await Student.findOneAndUpdate(
       { userId: req.user.id },
-      { resume: req.file.path },
+      { resume: resumePath },
       { new: true }
     );
 
@@ -60,6 +64,31 @@ const uploadResume = async (req, res) => {
     }
 
     res.json({ message: "Resume uploaded successfully", resumePath: student.resume });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Download resume file with Content-Disposition: attachment
+// @route   GET /api/student/resume/download
+const downloadResume = async (req, res) => {
+  try {
+    const student = await Student.findOne({ userId: req.user.id });
+    if (!student || !student.resume) {
+      return res.status(404).json({ message: "No resume found" });
+    }
+
+    const cleanPath = student.resume.replace(/\\/g, '/');
+    const absPath = path.resolve(cleanPath);
+
+    if (!fs.existsSync(absPath)) {
+      return res.status(404).json({ message: "Resume file not found on server" });
+    }
+
+    const filename = path.basename(absPath);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/pdf');
+    fs.createReadStream(absPath).pipe(res);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -295,5 +324,5 @@ module.exports = {
   joinQueue, joinWalkIn, leaveQueue, getWalkIns, getQueuePosition,
   getNotifications, markNotifRead, markAllNotifRead, clearAllNotifications,
   submitQuery, getMyQueries,
-  uploadResume,
+  uploadResume, downloadResume,
 };

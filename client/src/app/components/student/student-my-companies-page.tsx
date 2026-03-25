@@ -24,7 +24,7 @@ interface Company {
 export function StudentMyCompaniesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDay, setSelectedDay] = useState("all");
-  const [selectedSlot, setSelectedSlot] = useState("all");
+  const [selectedRound, setSelectedRound] = useState("all");
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -59,18 +59,19 @@ export function StudentMyCompaniesPage() {
   useEffect(() => { fetchCompanies(); }, [fetchCompanies]);
 
   const uniqueDays = [...new Set(companies.map((c) => c.day))].filter(Boolean);
-  const uniqueSlots = [...new Set(companies.map((c) => c.slot))].filter(Boolean);
+  const uniqueRounds = [...new Set(companies.map((c) => c.round.toString()))]
+    .filter(Boolean)
+    .sort((a, b) => parseInt(a) - parseInt(b));
 
   const filteredCompanies = companies.filter((company) => {
     const query = searchQuery.toLowerCase();
     const matchesSearch =
       company.name.toLowerCase().includes(query) ||
       company.day.toLowerCase().includes(query) ||
-      company.slot.toLowerCase().includes(query) ||
       company.round.toString().includes(query);
     const matchesDay = selectedDay === "all" || company.day === selectedDay;
-    const matchesSlot = selectedSlot === "all" || company.slot === selectedSlot;
-    return matchesSearch && matchesDay && matchesSlot;
+    const matchesRound = selectedRound === "all" || company.round.toString() === selectedRound;
+    return matchesSearch && matchesDay && matchesRound;
   });
 
   const getStatusBadge = (status: string) => {
@@ -128,13 +129,13 @@ export function StudentMyCompaniesPage() {
                 {uniqueDays.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={selectedSlot} onValueChange={setSelectedSlot}>
+            <Select value={selectedRound} onValueChange={setSelectedRound}>
               <SelectTrigger className="w-full md:w-48">
-                <SelectValue placeholder="Select Slot" />
+                <SelectValue placeholder="Select Round" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Slots</SelectItem>
-                {uniqueSlots.map((s) => <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}
+                <SelectItem value="all">All Rounds</SelectItem>
+                {uniqueRounds.map((r) => <SelectItem key={r} value={r}>Round {r}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

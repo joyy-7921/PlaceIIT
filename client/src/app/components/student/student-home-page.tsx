@@ -5,6 +5,7 @@ import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 
 import { Search, Building2, MapPin, Clock, Users, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 import { studentApi } from "@/app/lib/api";
 import { useSocket } from "@/app/socket-context";
 import { toast } from "sonner";
@@ -39,6 +40,7 @@ const STATUS_LABEL: Record<string, string> = {
 export function StudentHomePage() {
   const { socket } = useSocket();
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedRound, setSelectedRound] = useState("all");
   const [companies, setCompanies] = useState<Company[]>([]);
   const [walkinCompanies, setWalkinCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -176,10 +178,17 @@ export function StudentHomePage() {
     return diff !== 0 ? diff : a.priority - b.priority;
   });
 
-  const filteredCompanies = sortedCompanies.filter((company) =>
-    company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    company.role.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredCompanies = sortedCompanies.filter((company) => {
+    const matchesSearch =
+      company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      company.role.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesRound = selectedRound === "all" || company.round.toString() === selectedRound;
+    return matchesSearch && matchesRound;
+  });
+
+  const uniqueRounds = [...new Set([...companies, ...walkinCompanies].map((c) => c.round.toString()))]
+    .filter(Boolean)
+    .sort((a, b) => parseInt(a) - parseInt(b));
 
   const renderCompanyCard = (company: Company) => (
     <Card key={company.id} className="hover:shadow-lg transition-shadow">
@@ -303,6 +312,15 @@ export function StudentHomePage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <Input placeholder="Search by company name or role…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
             </div>
+            <Select value={selectedRound} onValueChange={setSelectedRound}>
+              <SelectTrigger className="w-full md:w-48">
+                <SelectValue placeholder="Select Round" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Rounds</SelectItem>
+                {uniqueRounds.map((r) => <SelectItem key={r} value={r}>Round {r}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
