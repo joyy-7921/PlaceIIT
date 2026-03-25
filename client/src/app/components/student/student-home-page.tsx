@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/ca
 import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
+
 import { Search, Building2, MapPin, Clock, Users, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 import { studentApi } from "@/app/lib/api";
 import { useSocket } from "@/app/socket-context";
 import { toast } from "sonner";
@@ -39,7 +40,7 @@ const STATUS_LABEL: Record<string, string> = {
 export function StudentHomePage() {
   const { socket } = useSocket();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedSlot, setSelectedSlot] = useState("all");
+  const [selectedRound, setSelectedRound] = useState("all");
   const [companies, setCompanies] = useState<Company[]>([]);
   const [walkinCompanies, setWalkinCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -181,11 +182,13 @@ export function StudentHomePage() {
     const matchesSearch =
       company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       company.role.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesSlot = selectedSlot === "all" || company.slot === selectedSlot;
-    return matchesSearch && matchesSlot;
+    const matchesRound = selectedRound === "all" || company.round.toString() === selectedRound;
+    return matchesSearch && matchesRound;
   });
 
-  const uniqueSlots = [...new Set([...companies, ...walkinCompanies].map((c) => c.slot))].filter(Boolean);
+  const uniqueRounds = [...new Set([...companies, ...walkinCompanies].map((c) => c.round.toString()))]
+    .filter(Boolean)
+    .sort((a, b) => parseInt(a) - parseInt(b));
 
   const renderCompanyCard = (company: Company) => (
     <Card key={company.id} className="hover:shadow-lg transition-shadow">
@@ -246,7 +249,7 @@ export function StudentHomePage() {
           <MapPin className="h-4 w-4 mr-2 text-gray-400" /> Venue: {company.venue}
         </div>
         <div className="flex items-center text-sm text-gray-600">
-          <Clock className="h-4 w-4 mr-2 text-gray-400" /> {company.day} — {company.slot}
+          <Clock className="h-4 w-4 mr-2 text-gray-400" /> {company.day} — {company.slot.charAt(0).toUpperCase() + company.slot.slice(1)}
         </div>
 
         {/* Queue Counter — always visible */}
@@ -309,13 +312,13 @@ export function StudentHomePage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <Input placeholder="Search by company name or role…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
             </div>
-            <Select value={selectedSlot} onValueChange={setSelectedSlot}>
+            <Select value={selectedRound} onValueChange={setSelectedRound}>
               <SelectTrigger className="w-full md:w-48">
-                <SelectValue placeholder="Select Slot" />
+                <SelectValue placeholder="Select Round" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Slots</SelectItem>
-                {uniqueSlots.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                <SelectItem value="all">All Rounds</SelectItem>
+                {uniqueRounds.map((r) => <SelectItem key={r} value={r}>Round {r}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

@@ -4,6 +4,8 @@ const Company = require("../models/Company.model");
 const Notification = require("../models/Notification.model");
 const Query = require("../models/Query.model");
 const User = require("../models/User.model");
+const path = require("path");
+const fs = require("fs");
 const { sortCompaniesByPriority, buildPriorityMap } = require("../utils/priorityHelper");
 const queueService = require("../services/queue.service");
 
@@ -49,9 +51,11 @@ const uploadResume = async (req, res) => {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
+    const resumePath = req.file.path.replace(/\\/g, '/');
+
     const student = await Student.findOneAndUpdate(
       { userId: req.user.id },
-      { resume: req.file.path },
+      { resume: resumePath },
       { new: true }
     );
 
@@ -60,6 +64,31 @@ const uploadResume = async (req, res) => {
     }
 
     res.json({ message: "Resume uploaded successfully", resumePath: student.resume });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Download resume file with Content-Disposition: attachment
+// @route   GET /api/student/resume/download
+const downloadResume = async (req, res) => {
+  try {
+    const student = await Student.findOne({ userId: req.user.id });
+    if (!student || !student.resume) {
+      return res.status(404).json({ message: "No resume found" });
+    }
+
+    const cleanPath = student.resume.replace(/\\/g, '/');
+    const absPath = path.resolve(cleanPath);
+
+    if (!fs.existsSync(absPath)) {
+      return res.status(404).json({ message: "Resume file not found on server" });
+    }
+
+    const filename = path.basename(absPath);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/pdf');
+    fs.createReadStream(absPath).pipe(res);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -79,16 +108,7 @@ const getMyCompanies = async (req, res) => {
       priorityMap
     );
 
-    // Also fetch walk-in companies visible to all students
-    const walkInCompanies = await Company.find({ isWalkInEnabled: true, isActive: true });
-
-    // Merge: deduplicate by company ID
-    const shortlistedIds = new Set(sorted.map((c) => c._id.toString()));
-    const extraWalkins = walkInCompanies
-      .filter((w) => !shortlistedIds.has(w._id.toString()))
-      .map((w) => ({ ...w.toObject(), companyId: w._id, isWalkInEnabled: true }));
-
-    const allCompanies = [...sorted, ...extraWalkins];
+    const allCompanies = sorted;
 
     // Attach queue info for each company
     const result = await Promise.all(
@@ -101,7 +121,16 @@ const getMyCompanies = async (req, res) => {
           companyId: company._id,
           status: "in_queue",
         });
-        return { ...company, queueEntry, totalInQueue };
+        let liveQueueEntry = queueEntry ? queueEntry.toObject() : null;
+        if (liveQueueEntry && liveQueueEntry.status === "in_queue") {
+          const ahead = await Queue.countDocuments({
+            companyId: company._id,
+            status: "in_queue",
+            position: { $lt: liveQueueEntry.position },
+          });
+          liveQueueEntry = { ...liveQueueEntry, position: ahead + 1 };
+        }
+        return { ...company, queueEntry: liveQueueEntry, totalInQueue };
       })
     );
 
@@ -172,7 +201,16 @@ const getWalkIns = async (req, res) => {
         const queueEntry = student
           ? await Queue.findOne({ companyId: c._id, studentId: student._id })
           : null;
-        return { ...c.toObject(), totalInQueue, queueEntry };
+        let liveQueueEntry = queueEntry ? queueEntry.toObject() : null;
+        if (liveQueueEntry && liveQueueEntry.status === "in_queue") {
+          const ahead = await Queue.countDocuments({
+            companyId: c._id,
+            status: "in_queue",
+            position: { $lt: liveQueueEntry.position },
+          });
+          liveQueueEntry = { ...liveQueueEntry, position: ahead + 1 };
+        }
+        return { ...c.toObject(), totalInQueue, queueEntry: liveQueueEntry };
       })
     );
 
@@ -286,5 +324,5 @@ module.exports = {
   joinQueue, joinWalkIn, leaveQueue, getWalkIns, getQueuePosition,
   getNotifications, markNotifRead, markAllNotifRead, clearAllNotifications,
   submitQuery, getMyQueries,
-  uploadResume,
+  uploadResume, downloadResume,
 };

@@ -1,6 +1,6 @@
 /**
  * API Service Layer — centralised HTTP client for the PlaceIIT backend.
- * All requests go through the Vite proxy (/api → http://localhost:5000/api).
+ * All requests go through the Vite proxy (/api → http://localhost:5001/api).
  */
 
 const API_BASE = "/api";
@@ -270,6 +270,9 @@ export const adminApi = {
         request("/admin/auto-allocate-cocos", { method: "POST" }),
     getCocoConflicts: () =>
         request("/admin/coco-conflicts"),
+    getQueries: () => request("/admin/queries"),
+    respondToQuery: (id: string, data: { response: string; status: string }) =>
+        request(`/admin/queries/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 };
 
 /* ═══════════════════════════════════════════════════════════
