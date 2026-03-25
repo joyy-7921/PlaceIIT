@@ -70,6 +70,7 @@ export function CoCoStudentDetailsRoute() {
                 interviewWith={student.interviewWith}
                 interviewVenue={student.interviewVenue}
                 queuedFor={student.queuedFor}
+                fetchCompanies={() => cocoApi.getStudentCompanies(student.id)}
                 onBack={() => navigate("/coco/students")}
             />
 

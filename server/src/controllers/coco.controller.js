@@ -504,6 +504,103 @@ const addStudentToCompany = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+// @desc    Promote students to the next round via Excel upload
+// @route   POST /api/coco/round/promote
+const promoteStudentsViaExcel = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    const { companyId } = req.body;
+    if (!companyId) {
+      return res.status(400).json({ message: "companyId is required" });
+    }
+
+    const company = await Company.findById(companyId);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+
+    const maxRounds = company.totalRounds || 3;
+
+    const XLSX = require("xlsx");
+    const workbook = XLSX.readFile(req.file.path);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet);
+
+    let promoted = 0;
+    let alreadyMaxRound = [];
+    let notFound = [];
+
+    for (const row of rows) {
+      const rollNumber =
+        row["Roll Number"] || row["rollNumber"] || row["RollNumber"] || row["roll_number"];
+      if (!rollNumber) continue;
+
+      const student = await Student.findOne({ rollNumber: String(rollNumber).trim() });
+      if (!student) {
+        notFound.push(String(rollNumber));
+        continue;
+      }
+
+      // Find the student's current queue entry for this company
+      const queueEntry = await Queue.findOne({ studentId: student._id, companyId });
+      let currentRoundNumber = 1;
+
+      if (queueEntry && queueEntry.roundId) {
+        const currentRound = await InterviewRound.findById(queueEntry.roundId);
+        if (currentRound) {
+          currentRoundNumber = currentRound.roundNumber;
+        }
+      }
+
+      const nextRound = currentRoundNumber + 1;
+      if (nextRound > maxRounds) {
+        alreadyMaxRound.push(String(rollNumber));
+        continue;
+      }
+
+      // Find or create the next round
+      let nextRoundDoc = await InterviewRound.findOne({ companyId, roundNumber: nextRound });
+      if (!nextRoundDoc) {
+        nextRoundDoc = await InterviewRound.create({
+          companyId,
+          roundNumber: nextRound,
+          roundName: `Round ${nextRound}`,
+        });
+      }
+
+      // Update queue entry to point to the next round
+      if (queueEntry) {
+        queueEntry.roundId = nextRoundDoc._id;
+        queueEntry.status = "in_queue";
+        await queueEntry.save();
+      } else {
+        await Queue.create({
+          studentId: student._id,
+          companyId,
+          roundId: nextRoundDoc._id,
+          status: "in_queue",
+        });
+      }
+
+      // Ensure shortlisted
+      await Company.findByIdAndUpdate(companyId, {
+        $addToSet: { shortlistedStudents: student._id },
+      });
+      await Student.findByIdAndUpdate(student._id, {
+        $addToSet: { shortlistedCompanies: companyId },
+      });
+
+      promoted++;
+    }
+
+    let message = `${promoted} student(s) promoted to the next round.`;
+    if (alreadyMaxRound.length > 0) {
+      message += ` ${alreadyMaxRound.length} already at max round.`;
+    }
+
+    res.json({ message, promoted, alreadyMaxRound, notFound });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
 
 module.exports = {
   getAssignedCompany, getShortlistedStudents, addStudentToQueue,
@@ -512,4 +609,5 @@ module.exports = {
   getRounds, addRound, getPredefinedNotifications,
   searchAllStudents, addStudentToRound, uploadStudentsToRound,
   getCocoNotifications, markNotifRead, addStudentToCompany,
+  promoteStudentsViaExcel,
 };

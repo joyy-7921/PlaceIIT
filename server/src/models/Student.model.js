@@ -17,6 +17,7 @@ const studentSchema = new mongoose.Schema(
     batch: { type: String },
     cgpa: { type: Number },
     contact: { type: String },
+    phone: { type: String, required: true },
     emergencyContact: {
       name: { type: String },
       phone: { type: String },

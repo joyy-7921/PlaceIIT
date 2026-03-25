@@ -41,6 +41,7 @@ interface Company {
   name: string;
   day: string;
   slot: string;
+  venue?: string;
   cocoAssigned?: string;
 }
 
@@ -60,6 +61,7 @@ interface ManageCoCoPageProps {
       name: string;
       day: string;
       slot: string;
+      venue?: string;
     }>;
   }) => void;
 }
@@ -81,6 +83,8 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
   const [showUnassignedOnly, setShowUnassignedOnly] = useState(false);
   const [saving, setSaving] = useState(false);
   const [unallotted, setUnallotted] = useState<any[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   const normalizeCoco = (raw: any): CoCo => ({
     id: raw._id ?? raw.id ?? "",
@@ -96,6 +100,7 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
     name: raw.name ?? "—",
     day: raw.day != null ? `Day ${raw.day}` : "—",
     slot: raw.slot ? raw.slot.charAt(0).toUpperCase() + raw.slot.slice(1) : "—",
+    venue: raw.venue ?? "Not Assigned",
   });
 
   const fetchAll = useCallback(async () => {
@@ -135,16 +140,19 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
   }, [fetchAll]);
 
   const handleAddCoCo = async () => {
-    if (!newCoCoName) return;
+    if (!newCoCoName || !newCoCoEmail || !newCoCoRollNumber || !newCoCoPhone) {
+      toast.error("Please fill all required fields");
+      return;
+    }
     setSaving(true);
     try {
       const res: any = await adminApi.addCoco({
         name: newCoCoName,
-        email: newCoCoEmail || undefined,
-        rollNumber: newCoCoRollNumber || undefined,
-        contact: newCoCoPhone || undefined,
+        email: newCoCoEmail,
+        rollNumber: newCoCoRollNumber,
+        contact: newCoCoPhone,
       });
-      toast.success(`CoCo ${newCoCoName} added! Credentials: ID=${res.credentials?.instituteId}, Password=${res.credentials?.password}`);
+      toast.success(res.message || `CoCo ${newCoCoName} added! Credentials: ID=${res.credentials?.instituteId}, Password=${res.credentials?.password}`);
       setNewCoCoName("");
       setNewCoCoEmail("");
       setNewCoCoPhone("");
@@ -158,24 +166,46 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
     }
   };
 
-  const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const formData = new FormData();
-    formData.append("file", file);
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      const selected = Array.from(event.target.files);
+      setFiles((prev) => [...prev, ...selected]);
+    }
+    event.target.value = "";
+  };
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleConfirmUpload = async () => {
+    if (files.length === 0) return;
+    setUploading(true);
+    let errorCount = 0;
     try {
-      const res: any = await adminApi.uploadCocoExcel(formData);
-      toast.success(res.message || "CoCos imported from Excel successfully");
-      if (res.errors?.length > 0) {
-        toast.warning(`${res.errors.length} row(s) had issues. Check console for details.`);
-        console.warn("Excel import errors:", res.errors);
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res: any = await adminApi.uploadCocoExcel(formData);
+        if (res.errors?.length > 0) {
+          errorCount += res.errors.length;
+          console.warn(`Excel import errors in ${file.name}:`, res.errors);
+        }
       }
+      
+      toast.success("Co-Cos uploaded successfully");
+      if (errorCount > 0) {
+        toast.warning(`${errorCount} row(s) had issues across files. Check console.`);
+      }
+      
       setIsAddDialogOpen(false);
+      setFiles([]);
       await fetchAll();
     } catch (err: any) {
       toast.error(err.message ?? "Upload failed");
+    } finally {
+      setUploading(false);
     }
-    event.target.value = "";
   };
 
   const handleRemoveCoCo = async (id: string) => {
@@ -334,50 +364,88 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
                       <Input id="name" placeholder="Enter name" value={newCoCoName} onChange={(e) => setNewCoCoName(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="rollNumber">Roll Number</Label>
-                      <Input id="rollNumber" placeholder="Enter roll number (used as login ID)" value={newCoCoRollNumber} onChange={(e) => setNewCoCoRollNumber(e.target.value)} />
+                      <Label htmlFor="rollNumber">Roll Number *</Label>
+                      <Input id="rollNumber" placeholder="Enter roll number" value={newCoCoRollNumber} onChange={(e) => setNewCoCoRollNumber(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input id="email" type="email" placeholder="Enter email (auto-generated if empty)" value={newCoCoEmail} onChange={(e) => setNewCoCoEmail(e.target.value)} />
+                      <Label htmlFor="email">Email *</Label>
+                      <Input id="email" type="email" placeholder="Enter email" value={newCoCoEmail} onChange={(e) => setNewCoCoEmail(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="phone">Phone</Label>
-                      <Input id="phone" placeholder="Enter phone number" value={newCoCoPhone} onChange={(e) => setNewCoCoPhone(e.target.value)} />
+                      <Label htmlFor="phone">Phone *</Label>
+                      <Input id="phone" placeholder="Enter 10-digit phone number" value={newCoCoPhone} onChange={(e) => setNewCoCoPhone(e.target.value)} />
                     </div>
-                    <p className="text-xs text-gray-500">Default password: coco123</p>
+                    <p className="text-xs text-gray-500 mt-4">Username (cocoX) and random password will be auto-generated and sent via email.</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-indigo-400 transition-colors">
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-indigo-400 transition-colors relative">
+                      {uploading && (
+                        <div className="absolute inset-0 bg-white/50 z-10 flex flex-col items-center justify-center rounded-lg">
+                          <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mb-2" />
+                          <span className="text-sm font-medium text-indigo-900">Uploading...</span>
+                        </div>
+                      )}
                       <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                       <h3 className="font-semibold text-gray-900 mb-2">Upload Excel File</h3>
                       <p className="text-sm text-gray-500 mb-4">Upload an Excel file (.xlsx, .xls) with CoCo requirements</p>
-                      <input id="excel-upload" type="file" accept=".xlsx,.xls" onChange={handleExcelUpload} className="hidden" />
-                      <Button type="button" variant="outline" onClick={() => document.getElementById("excel-upload")?.click()}>
+                      <input id="excel-upload" type="file" multiple accept=".xlsx,.xls" onChange={handleFileSelect} className="hidden" />
+                      <Button type="button" variant="outline" onClick={() => document.getElementById("excel-upload")?.click()} disabled={uploading}>
                         <Upload className="h-4 w-4 mr-2" />
-                        Choose File
+                        Choose Files
                       </Button>
                     </div>
+
+                    {files.length > 0 && (
+                      <div className="bg-white border rounded-lg p-4 space-y-2">
+                        <h4 className="text-sm font-semibold text-gray-700">Selected Files:</h4>
+                        {files.map((file, idx) => (
+                          <div key={idx} className="flex items-center justify-between bg-gray-50 p-2 rounded text-sm text-gray-600 border">
+                            <span className="truncate">{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeFile(idx)}
+                              className="text-red-500 hover:text-red-700 p-1"
+                              disabled={uploading}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                       <h4 className="font-semibold text-blue-900 mb-2 text-sm">Excel Format Requirements:</h4>
-                      <ul className="text-xs text-blue-800 space-y-1">
-                        <li>• Column: <strong>name</strong> (required)</li>
-                        <li>• Column: <strong>rollNumber</strong> (used as login ID)</li>
-                        <li>• Column: <strong>email</strong> (optional, auto-generated)</li>
-                        <li>• Column: <strong>password</strong> (optional, default: coco123)</li>
-                        <li>• Column: <strong>contact</strong> (optional)</li>
+                      <p className="text-xs text-blue-800 mb-2">Columns must be exactly in this order with these names:</p>
+                      <ul className="text-xs text-blue-800 space-y-1 list-decimal list-inside">
+                        <li><strong>Name</strong> (required)</li>
+                        <li><strong>Email</strong> (required, unique)</li>
+                        <li><strong>Roll Number</strong> (required, unique)</li>
+                        <li><strong>Phone Number</strong> (required, 10 digits)</li>
                       </ul>
+                      <p className="text-xs text-blue-700 mt-2 font-semibold">Usernames and secure passwords will be automatically generated and emailed to all Co-Cos.</p>
                     </div>
                   </div>
                 )}
               </div>
 
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => {
+                  setIsAddDialogOpen(false);
+                  setFiles([]);
+                }} disabled={uploading}>Cancel</Button>
                 {addMethod === "manual" && (
                   <Button onClick={handleAddCoCo} disabled={saving}>
                     {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}Add CoCo
+                  </Button>
+                )}
+                {addMethod === "excel" && (
+                  <Button onClick={handleConfirmUpload} disabled={files.length === 0 || uploading}>
+                    {uploading ? (
+                      <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Uploading...</>
+                    ) : (
+                      "Add Co-Cos"
+                    )}
                   </Button>
                 )}
               </DialogFooter>

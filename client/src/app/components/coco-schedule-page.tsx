@@ -10,67 +10,44 @@ interface CoCoSchedulePageProps {
     name: string;
     email: string;
     phone: string;
+    assignments?: Array<{
+      id: string;
+      name: string;
+      day: string;
+      slot: string;
+      venue?: string;
+    }>;
   };
   onBack: () => void;
 }
 
 export function CoCoSchedulePage({ coco, onBack }: CoCoSchedulePageProps) {
-  // Mock schedule data - In real app, this would come from props or API
-  const scheduleData = [
-    {
-      day: "Day 1",
-      date: "Jan 22, 2026",
-      slots: [
-        {
-          time: "09:00 AM - 11:00 AM",
-          company: "Google India",
-          venue: "Seminar Hall A",
-          candidateCount: 45,
-          status: "upcoming"
-        },
-        {
-          time: "02:00 PM - 04:00 PM",
-          company: "Microsoft Corporation",
-          venue: "Auditorium B",
-          candidateCount: 38,
-          status: "upcoming"
-        }
-      ]
-    },
-    {
-      day: "Day 2",
-      date: "Jan 23, 2026",
-      slots: [
-        {
-          time: "10:00 AM - 12:00 PM",
-          company: "Amazon Web Services",
-          venue: "Conference Room 2",
-          candidateCount: 52,
-          status: "upcoming"
-        }
-      ]
-    },
-    {
-      day: "Day 3",
-      date: "Jan 24, 2026",
-      slots: [
-        {
-          time: "09:00 AM - 11:00 AM",
-          company: "Meta Platforms",
-          venue: "Seminar Hall C",
-          candidateCount: 41,
-          status: "upcoming"
-        },
-        {
-          time: "01:00 PM - 03:00 PM",
-          company: "Apple Inc.",
-          venue: "Main Auditorium",
-          candidateCount: 33,
-          status: "upcoming"
-        }
-      ]
+  const assignments = coco.assignments || [];
+
+  // Group by day (e.g. "Day 1", "Day 2")
+  const groupedTasks: Record<string, typeof assignments> = {};
+  assignments.forEach((a) => {
+    if (!groupedTasks[a.day]) {
+      groupedTasks[a.day] = [];
     }
-  ];
+    groupedTasks[a.day].push(a);
+  });
+
+  // Convert to scheduleData format
+  const scheduleData = Object.keys(groupedTasks).sort().map((dayLabel) => {
+    const slots = groupedTasks[dayLabel].map((assignment) => ({
+      time: assignment.slot.toLowerCase() === "morning" ? "09:00 AM - 01:00 PM" : "02:00 PM - 06:00 PM",
+      company: assignment.name,
+      venue: assignment.venue && assignment.venue !== "Not Assigned" ? assignment.venue : "Not Assigned",
+      candidateCount: 0,
+      status: "upcoming"
+    }));
+    return {
+      day: dayLabel,
+      date: "Schedule depending on slot", 
+      slots
+    };
+  });
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -245,7 +222,7 @@ export function CoCoSchedulePage({ coco, onBack }: CoCoSchedulePageProps) {
                               <Users className="h-5 w-5 text-gray-600" />
                               <div>
                                 <p className="text-xs text-gray-500 font-semibold uppercase">Candidates</p>
-                                <p className="text-sm font-medium text-gray-900">{slot.candidateCount} students</p>
+                                <p className="text-sm font-medium text-gray-900">{slot.candidateCount > 0 ? `${slot.candidateCount} students` : "TBD"}</p>
                               </div>
                             </div>
                           </div>

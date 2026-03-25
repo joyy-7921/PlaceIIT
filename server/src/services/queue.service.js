@@ -20,16 +20,37 @@ const joinQueue = async (studentId, companyId, isWalkIn = false) => {
       throw new Error("Student is not shortlisted for this company");
   }
 
-  // Check if already in ANY active queue (single queue constraint)
-  const activeEntry = await Queue.findOne({ 
-    studentId, 
-    status: { $in: [STUDENT_STATUS.IN_QUEUE, STUDENT_STATUS.IN_INTERVIEW] } 
-  });
-  if (activeEntry) throw new Error("You are already in an active queue. Please complete or leave it before joining another.");
-
-  // Check if already in THIS company queue
+  // If student already has a stale entry for THIS company (completed/rejected), remove it
   const existing = await Queue.findOne({ companyId, studentId });
-  if (existing) throw new Error("Student is already in this queue");
+  if (existing) {
+    if ([STUDENT_STATUS.COMPLETED, STUDENT_STATUS.REJECTED].includes(existing.status)) {
+      await Queue.findByIdAndDelete(existing._id);
+    } else if (existing.status === STUDENT_STATUS.IN_QUEUE || existing.status === STUDENT_STATUS.IN_INTERVIEW) {
+      throw new Error("You are already in this company's queue");
+    }
+  }
+
+  // AUTO-SWITCH: Remove from any other active queue
+  const activeEntries = await Queue.find({
+    studentId,
+    status: { $in: [STUDENT_STATUS.IN_QUEUE, STUDENT_STATUS.IN_INTERVIEW] },
+  });
+
+  for (const activeEntry of activeEntries) {
+    const oldCompanyId = activeEntry.companyId;
+    await Queue.findByIdAndDelete(activeEntry._id);
+    try {
+      getIO().to(`company:${oldCompanyId}`).emit(SOCKET_EVENTS.QUEUE_UPDATED, {
+        companyId: oldCompanyId, action: "left", studentId,
+      });
+      const st = await Student.findById(studentId);
+      if (st) {
+        getIO().to(`user:${st.userId}`).emit(SOCKET_EVENTS.STATUS_UPDATED, {
+          companyId: oldCompanyId, status: "not_joined",
+        });
+      }
+    } catch (_) {}
+  }
 
   // Resolve active Round
   let roundId = null;
@@ -66,6 +87,21 @@ const joinQueue = async (studentId, companyId, isWalkIn = false) => {
   return entry;
 };
 
+const leaveQueue = async (studentId, companyId) => {
+  const entry = await Queue.findOne({ companyId, studentId });
+  if (!entry) throw new Error("Not in queue for this company");
+
+  await Queue.findByIdAndDelete(entry._id);
+
+  try {
+    getIO().to(`company:${companyId}`).emit(SOCKET_EVENTS.QUEUE_UPDATED, {
+      companyId, action: "left", studentId,
+    });
+  } catch (_) {}
+
+  return { message: "Left queue successfully" };
+};
+
 const updateStatus = async (studentId, companyId, status, roundId = null, panelId = null) => {
   const entry = await Queue.findOne({ companyId, studentId }).populate("studentId");
   if (!entry) throw new Error("Queue entry not found");
@@ -100,4 +136,4 @@ const getQueue = async (companyId) => {
     .sort({ position: 1 });
 };
 
-module.exports = { joinQueue, updateStatus, getQueue };
+module.exports = { joinQueue, leaveQueue, updateStatus, getQueue };

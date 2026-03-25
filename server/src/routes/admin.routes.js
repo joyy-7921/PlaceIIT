@@ -4,7 +4,9 @@ const {
   getStats, getCompanies, addCompany, updateCompany,
   searchStudents, getCocos, addCoco, addStudent,
   assignCoco, removeCoco,
-  uploadCompanyExcel, uploadShortlistExcel, uploadCocoExcel, uploadCocoRequirementsExcel, getUploadStatus,
+  uploadCompanyExcel, uploadShortlistExcel,  uploadCocoExcel,
+  uploadStudentExcel,
+  uploadCocoRequirementsExcel, getUploadStatus, getStudentCompanies,
   shortlistStudents, getShortlistedStudents, autoAllocateCocos, getCocoConflicts
 } = require("../controllers/admin.controller");
 const { protect } = require("../middlewares/auth.middleware");
@@ -20,14 +22,16 @@ router.put("/companies/:id", updateCompany);
 router.get("/students/search", searchStudents);
 router.post("/students/shortlist", shortlistStudents);
 router.post("/students", addStudent);
+router.get("/students/:id/companies", getStudentCompanies);
 router.get("/companies/:id/students", getShortlistedStudents);
 router.get("/cocos", getCocos);
 router.post("/cocos", addCoco);
 router.post("/assign-coco", assignCoco);
 router.post("/remove-coco", removeCoco);
-router.post("/upload/companies", upload.single("file"), uploadCompanyExcel);
-router.post("/upload/shortlist", upload.single("file"), uploadShortlistExcel);
-router.post("/upload/cocos", upload.single("file"), uploadCocoExcel);
+router.post("/upload/companies", protect, authorize("admin"), upload.single("file"), uploadCompanyExcel);
+router.post("/upload/shortlist", protect, authorize("admin", "coco"), upload.single("file"), uploadShortlistExcel);
+router.post("/upload/cocos", protect, authorize("admin"), upload.single("file"), uploadCocoExcel);
+router.post("/upload/students", protect, authorize("admin"), upload.single("file"), uploadStudentExcel);
 router.post("/upload/coordinator-requirements", upload.single("file"), uploadCocoRequirementsExcel);
 router.get("/upload/:id", getUploadStatus);
 router.post("/auto-allocate-cocos", autoAllocateCocos);

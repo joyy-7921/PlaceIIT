@@ -41,7 +41,7 @@ interface Panel {
 }
 
 interface CoCoHomePageProps {
-  companyName: string;
+  companyName?: string;
   onRoundTracking: () => void;
 }
 
@@ -57,7 +57,7 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
 
   const [company, setCompany] = useState({
     id: "",
-    name: companyName || "—",
+    name: companyName || "",
     logo: "",
     role: "",
     venue: "—",
@@ -113,15 +113,24 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
     setLoading(true);
     try {
       const companyRes: any = await cocoApi.getAssignedCompany();
-      const companyObj = Array.isArray(companyRes)
-        ? companyRes.find((c: any) => (c.name ?? "").toLowerCase() === companyName.toLowerCase()) ?? companyRes[0]
-        : companyRes.company ?? companyRes;
+      const arr = Array.isArray(companyRes) ? companyRes : (companyRes.companies || (companyRes.company ? [companyRes.company] : []));
+
+      if (arr.length === 0) {
+        setCompany({ id: "", name: "", logo: "", role: "", venue: "—", currentRound: 1, totalRounds: 1 });
+        return;
+      }
+
+      let companyObj = companyName 
+        ? arr.find((c: any) => (c.name ?? "").toLowerCase() === companyName.toLowerCase())
+        : arr[0];
+
+      if (!companyObj) companyObj = arr[0];
 
       if (companyObj) {
         const cid = companyObj._id ?? companyObj.id ?? "";
         setCompany({
           id: cid,
-          name: companyObj.name ?? companyName,
+          name: companyObj.name ?? companyName ?? "—",
           logo: companyObj.logo ?? "",
           role: companyObj.role ?? "",
           venue: companyObj.venue ?? "TBA",
@@ -327,6 +336,18 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
   });
 
   if (loading) return <div className="flex items-center justify-center py-24 text-gray-400 gap-2"><Loader2 className="h-6 w-6 animate-spin" /> Loading...</div>;
+
+  if (!company.id) {
+    return (
+      <Card className="bg-gray-50 border-dashed border-2 m-6">
+        <CardContent className="py-24 text-center flex flex-col items-center">
+            <Building2 className="h-16 w-16 text-gray-400 mb-4" />
+            <h2 className="text-2xl font-bold text-gray-700">No assignments yet</h2>
+            <p className="text-gray-500 mt-2">You have not been assigned to any companies today.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">

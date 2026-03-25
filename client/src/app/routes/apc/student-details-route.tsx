@@ -1,6 +1,6 @@
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import { StudentDetailsPage } from "@/app/components/student-details-page";
-import { Navigate } from "react-router-dom";
+import { adminApi } from "@/app/lib/api";
 
 export function APCStudentDetailsRoute() {
     const navigate = useNavigate();
@@ -25,6 +25,7 @@ export function APCStudentDetailsRoute() {
             inInterview={student.inInterview}
             interviewWith={student.interviewWith}
             interviewVenue={student.interviewVenue}
+            fetchCompanies={() => adminApi.getStudentCompanies(student.id)}
             onBack={() => navigate("/apc/students")}
         />
     );

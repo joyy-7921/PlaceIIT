@@ -9,7 +9,9 @@ const {
   getRounds, addRound, getPredefinedNotifications,
   searchAllStudents, addStudentToRound, uploadStudentsToRound,
   getCocoNotifications, markNotifRead, addStudentToCompany,
+  promoteStudentsViaExcel,
 } = require("../controllers/coco.controller");
+const { getStudentCompanies } = require("../controllers/admin.controller");
 const { protect } = require("../middlewares/auth.middleware");
 const { authorize } = require("../middlewares/role.middleware");
 
@@ -33,7 +35,9 @@ router.put("/panel/:id/clear", clearPanel);
 router.post("/round", addRound);
 router.post("/round/add-student", addStudentToRound);
 router.post("/round/upload-students", upload.single("file"), uploadStudentsToRound);
+router.post("/round/promote", upload.single("file"), promoteStudentsViaExcel);
 router.get("/students/search", searchAllStudents);
+router.get("/students/:id/companies", getStudentCompanies);
 router.post("/company/add-student", addStudentToCompany);
 
 module.exports = router;

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
-import { Search, Phone, Mail, FileText, Clock, Eye, Loader2, UserPlus } from "lucide-react";
+import { Search, Phone, Mail, FileText, Clock, Eye, Loader2, UserPlus, Upload } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/app/components/ui/dialog";
 import { toast } from "sonner";
 import { adminApi } from "@/app/lib/api";
@@ -41,6 +41,8 @@ export function StudentSearchPage({ onStudentClick, fetchApi }: StudentSearchPag
   const [formData, setFormData] = useState({
     name: "",
     rollNumber: "",
+    email: "",
+    phone: "",
   });
 
   const normalizeStudent = (raw: any): Student => ({
@@ -49,7 +51,7 @@ export function StudentSearchPage({ onStudentClick, fetchApi }: StudentSearchPag
     name: raw.name,
     rollNo: raw.rollNumber,
     email: raw.email ?? "",
-    phone: raw.contact ?? "",
+    phone: raw.phone || raw.contact || "Not Available",
     emergencyContact: raw.emergencyContact?.phone ?? "",
     department: raw.branch ?? "Unknown",
     cgpa: raw.cgpa ?? 0,
@@ -96,19 +98,29 @@ export function StudentSearchPage({ onStudentClick, fetchApi }: StudentSearchPag
   );
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.rollNumber) {
-      toast.error("Name and Roll Number are required");
+    console.log("[AddStudent] Form submitted, data:", formData);
+    if (!formData.name || !formData.rollNumber || !formData.email || !formData.phone) {
+      toast.error("Name, Roll Number, Email ID, and Phone Number are required");
+      return;
+    }
+    if (!/^\d{10}$/.test(formData.phone)) {
+      toast.error("Phone number must be exactly 10 digits");
       return;
     }
     setIsSubmitting(true);
     try {
-      const res: any = await adminApi.addStudent({
+      const payload = {
         name: formData.name,
         rollNumber: formData.rollNumber,
-      });
+        email: formData.email,
+        phone: formData.phone,
+      };
+      console.log("[AddStudent] Sending API request with payload:", payload);
+      const res: any = await adminApi.addStudent(payload);
+      console.log("[AddStudent] API response:", res);
       toast.success(`Student added! Login ID: ${res.credentials?.instituteId}, Password: ${res.credentials?.password}`);
       setIsAddModalOpen(false);
-      setFormData({ name: "", rollNumber: "" });
+      setFormData({ name: "", rollNumber: "", email: "", phone: "" });
       const roll = res.credentials?.instituteId || formData.rollNumber;
       setSearchQuery(roll);
       fetchStudents(roll);
@@ -118,6 +130,25 @@ export function StudentSearchPage({ onStudentClick, fetchApi }: StudentSearchPag
       setIsSubmitting(false);
     }
   };
+
+  const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const uploadData = new FormData();
+    uploadData.append("file", file);
+    try {
+      const res: any = await adminApi.uploadStudentExcel(uploadData);
+      toast.success(res.message || "Students uploaded from Excel successfully");
+      if (res.problemList?.length > 0) {
+        toast.warning(`${res.problemList.length} row(s) had issues. Check console for details.`);
+        console.warn("Student Excel errors:", res.problemList);
+      }
+      fetchStudents(searchQuery);
+    } catch (err: any) {
+      toast.error(err.message ?? "Upload failed");
+    }
+    event.target.value = "";
+  };
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -125,14 +156,30 @@ export function StudentSearchPage({ onStudentClick, fetchApi }: StudentSearchPag
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Student Search</h1>
           <p className="text-gray-500">Search and view student information</p>
         </div>
-        <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-green-600 hover:bg-green-700 flex items-center gap-2">
-              <UserPlus className="h-4 w-4" />
-              Add Student
+        <div className="flex gap-2">
+          {/* Excel Upload for Students */}
+          <div className="relative group">
+            <input id="student-excel-upload" type="file" accept=".xlsx,.xls" onChange={handleExcelUpload} className="hidden" />
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 border-gray-300"
+              onClick={() => document.getElementById("student-excel-upload")?.click()}
+            >
+              <Upload className="h-4 w-4" /> Upload Students (Excel)
             </Button>
-          </DialogTrigger>
-          <DialogContent>
+            <div className="absolute top-12 right-0 hidden group-hover:block bg-gray-900 text-white text-xs rounded p-2 z-10 w-64 shadow-lg">
+              Excel must have exactly 4 columns in any order: <strong>Name, Roll Number, Email ID, Phone Number</strong>.
+            </div>
+          </div>
+
+          <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-green-600 hover:bg-green-700 flex items-center gap-2">
+                <UserPlus className="h-4 w-4" />
+                Add Student
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Student</DialogTitle>
             </DialogHeader>
@@ -149,7 +196,24 @@ export function StudentSearchPage({ onStudentClick, fetchApi }: StudentSearchPag
                 onChange={(e) => setFormData({ ...formData, rollNumber: e.target.value })}
                 required
               />
-              <p className="text-xs text-gray-500">Login credentials will be auto-generated: ID = Roll Number, Password = student123</p>
+              <Input
+                placeholder="Email ID"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                required
+              />
+              <Input
+                placeholder="Phone Number (10 digits)"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                required
+                pattern="\d{10}"
+                title="Must be a valid 10-digit phone number"
+              />
+              <p className="text-xs text-gray-500">
+                A random secure password will be auto-generated and emailed to the student. They will be forced to reset it upon first login.
+              </p>
               <Button type="submit" className="w-full bg-indigo-600" disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Create Student Account
@@ -157,6 +221,7 @@ export function StudentSearchPage({ onStudentClick, fetchApi }: StudentSearchPag
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Search Bar */}
@@ -247,7 +312,7 @@ export function StudentSearchPage({ onStudentClick, fetchApi }: StudentSearchPag
                     <Phone className="h-5 w-5 text-indigo-600" />
                     <div>
                       <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-0.5">Phone</div>
-                      <span className="text-sm text-gray-900 font-medium">{student.phone || "—"}</span>
+                      <span className="text-sm text-gray-900 font-medium">{student.phone}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 bg-red-50 p-3 rounded-lg md:col-span-2">

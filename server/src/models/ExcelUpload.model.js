@@ -7,7 +7,7 @@ const excelUploadSchema = new mongoose.Schema(
     filePath: { type: String, required: true },
     type: {
       type: String,
-      enum: ["company_info", "student_shortlist", "coordinator_requirements", "priority_order"],
+      enum: ["company_info", "student_shortlist", "coordinator_requirements", "priority_order", "company_import", "coco_import", "student_import"],
       required: true,
     },
     status: {

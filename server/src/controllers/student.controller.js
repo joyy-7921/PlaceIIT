@@ -2,6 +2,8 @@ const Student = require("../models/Student.model");
 const Queue = require("../models/Queue.model");
 const Company = require("../models/Company.model");
 const Notification = require("../models/Notification.model");
+const Query = require("../models/Query.model");
+const User = require("../models/User.model");
 const { sortCompaniesByPriority, buildPriorityMap } = require("../utils/priorityHelper");
 const queueService = require("../services/queue.service");
 
@@ -22,19 +24,48 @@ const getProfile = async (req, res) => {
 // @route   PUT /api/student/profile
 const updateProfile = async (req, res) => {
   try {
-    const { contact, emergencyContact, friendContact, branch, batch, cgpa } = req.body;
+    const { contact, emergencyContact, friendContact, branch, batch, email } = req.body;
     const student = await Student.findOneAndUpdate(
       { userId: req.user.id },
-      { contact, emergencyContact, friendContact, branch, batch, cgpa, profileCompleted: true },
+      { contact, emergencyContact, friendContact, branch, batch, profileCompleted: true },
       { new: true }
     );
+    if (!student) return res.status(404).json({ message: "Student not found" });
+    // Update email on User model if provided
+    if (email) {
+      await User.findByIdAndUpdate(req.user.id, { email });
+    }
     res.json(student);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-// @desc    Get shortlisted companies sorted by priority
+// @desc    Upload student resume
+// @route   POST /api/student/resume
+const uploadResume = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    const student = await Student.findOneAndUpdate(
+      { userId: req.user.id },
+      { resume: req.file.path },
+      { new: true }
+    );
+
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    res.json({ message: "Resume uploaded successfully", resumePath: student.resume });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Get shortlisted companies sorted by priority (includes walk-in companies)
 // @route   GET /api/student/companies
 const getMyCompanies = async (req, res) => {
   try {
@@ -48,14 +79,29 @@ const getMyCompanies = async (req, res) => {
       priorityMap
     );
 
+    // Also fetch walk-in companies visible to all students
+    const walkInCompanies = await Company.find({ isWalkInEnabled: true, isActive: true });
+
+    // Merge: deduplicate by company ID
+    const shortlistedIds = new Set(sorted.map((c) => c._id.toString()));
+    const extraWalkins = walkInCompanies
+      .filter((w) => !shortlistedIds.has(w._id.toString()))
+      .map((w) => ({ ...w.toObject(), companyId: w._id, isWalkInEnabled: true }));
+
+    const allCompanies = [...sorted, ...extraWalkins];
+
     // Attach queue info for each company
     const result = await Promise.all(
-      sorted.map(async (company) => {
+      allCompanies.map(async (company) => {
         const queueEntry = await Queue.findOne({
           companyId: company._id,
           studentId: student._id,
         });
-        return { ...company, queueEntry };
+        const totalInQueue = await Queue.countDocuments({
+          companyId: company._id,
+          status: "in_queue",
+        });
+        return { ...company, queueEntry, totalInQueue };
       })
     );
 
@@ -95,12 +141,42 @@ const joinWalkIn = async (req, res) => {
   }
 };
 
+// @desc    Leave queue for a company
+// @route   POST /api/student/queue/leave
+const leaveQueue = async (req, res) => {
+  try {
+    const { companyId } = req.body;
+    const student = await Student.findOne({ userId: req.user.id });
+    if (!student) return res.status(404).json({ message: "Student not found" });
+
+    const result = await queueService.leaveQueue(student._id, companyId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
 // @desc    Get available walk-in companies
 // @route   GET /api/student/walkins
 const getWalkIns = async (req, res) => {
   try {
     const companies = await Company.find({ isWalkInEnabled: true, isActive: true });
-    res.json(companies);
+    const student = await Student.findOne({ userId: req.user.id });
+
+    const result = await Promise.all(
+      companies.map(async (c) => {
+        const totalInQueue = await Queue.countDocuments({
+          companyId: c._id,
+          status: "in_queue",
+        });
+        const queueEntry = student
+          ? await Queue.findOne({ companyId: c._id, studentId: student._id })
+          : null;
+        return { ...c.toObject(), totalInQueue, queueEntry };
+      })
+    );
+
+    res.json(result);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -152,8 +228,63 @@ const markNotifRead = async (req, res) => {
   }
 };
 
+// @desc    Submit a query
+// @route   POST /api/student/queries
+const submitQuery = async (req, res) => {
+  try {
+    const { subject, message } = req.body;
+    if (!subject || !message)
+      return res.status(400).json({ message: "Subject and message are required" });
+
+    const query = await Query.create({
+      studentUserId: req.user.id,
+      subject,
+      message,
+    });
+    res.status(201).json(query);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Get my queries
+// @route   GET /api/student/queries
+const getMyQueries = async (req, res) => {
+  try {
+    const queries = await Query.find({ studentUserId: req.user.id }).sort({ createdAt: -1 });
+    res.json(queries);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Mark all notifications as read
+// @route   PUT /api/student/notifications/read-all
+const markAllNotifRead = async (req, res) => {
+  try {
+    await Notification.updateMany({ recipientId: req.user.id, isRead: false }, { isRead: true });
+    res.json({ message: "All notifications marked as read" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Clear all notifications
+// @route   DELETE /api/student/notifications
+const clearAllNotifications = async (req, res) => {
+  try {
+    await Notification.deleteMany({ recipientId: req.user.id });
+    res.json({ message: "All notifications cleared" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+
 module.exports = {
   getProfile, updateProfile, getMyCompanies,
-  joinQueue, joinWalkIn, getWalkIns, getQueuePosition,
-  getNotifications, markNotifRead,
+  joinQueue, joinWalkIn, leaveQueue, getWalkIns, getQueuePosition,
+  getNotifications, markNotifRead, markAllNotifRead, clearAllNotifications,
+  submitQuery, getMyQueries,
+  uploadResume,
 };

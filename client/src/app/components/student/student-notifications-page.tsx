@@ -3,10 +3,21 @@ import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
-import { Bell, CheckCircle, AlertCircle, Info, Building2, Clock, Search, Loader2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/app/components/ui/alert-dialog";
+import { Bell, CheckCircle, AlertCircle, Info, Building2, Clock, Search, Loader2, CheckCheck, Trash2 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { studentApi } from "@/app/lib/api";
 import { useSocket } from "@/app/socket-context";
+import { useAuth } from "@/app/auth-context";
 import { toast } from "sonner";
 
 interface Notification {
@@ -21,10 +32,12 @@ interface Notification {
 
 export function StudentNotificationsPage() {
   const { socket } = useSocket();
+  const auth = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const normalizeNotif = (raw: any): Notification => ({
     id: raw._id ?? raw.id ?? "",
@@ -41,7 +54,9 @@ export function StudentNotificationsPage() {
     try {
       const data: any = await studentApi.getNotifications();
       const list = Array.isArray(data) ? data : data.notifications ?? [];
-      setNotifications(list.map(normalizeNotif));
+      const mapped = list.map(normalizeNotif);
+      setNotifications(mapped);
+      auth.setUnreadNotificationsCount(mapped.filter((n: Notification) => !n.isRead).length);
     } catch {
       setNotifications([]);
     } finally {
@@ -67,11 +82,36 @@ export function StudentNotificationsPage() {
   const handleMarkRead = async (id: string) => {
     try {
       await studentApi.markNotifRead(id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-      );
+      setNotifications((prev) => {
+        const updated = prev.map((n) => (n.id === id ? { ...n, isRead: true } : n));
+        auth.setUnreadNotificationsCount(updated.filter((n) => !n.isRead).length);
+        return updated;
+      });
     } catch {
       toast.error("Failed to mark as read");
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await studentApi.markAllNotifRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      auth.setUnreadNotificationsCount(0);
+      toast.success("All notifications marked as read");
+    } catch {
+      toast.error("Failed to mark all as read");
+    }
+  };
+
+  const handleClearAll = async () => {
+    try {
+      await studentApi.clearAllNotifications();
+      setNotifications([]);
+      auth.setUnreadNotificationsCount(0);
+      setShowClearConfirm(false);
+      toast.success("All notifications cleared");
+    } catch {
+      toast.error("Failed to clear notifications");
     }
   };
 
@@ -137,6 +177,19 @@ export function StudentNotificationsPage() {
         )}
       </div>
 
+      {notifications.length > 0 && (
+        <div className="flex gap-2 justify-end">
+          {unreadCount > 0 && (
+            <Button variant="outline" size="sm" onClick={handleMarkAllRead}>
+              <CheckCheck className="h-4 w-4 mr-2" /> Mark All as Read
+            </Button>
+          )}
+          <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => setShowClearConfirm(true)}>
+            <Trash2 className="h-4 w-4 mr-2" /> Clear All
+          </Button>
+        </div>
+      )}
+
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col md:flex-row gap-4">
@@ -169,7 +222,12 @@ export function StudentNotificationsPage() {
           {filteredNotifications.map((notification) => (
             <Card
               key={notification.id}
-              className={`transition-all hover:shadow-md ${!notification.isRead ? "border-l-4 border-l-indigo-600 bg-indigo-50" : ""}`}
+              className={`transition-all hover:shadow-md ${
+                !notification.isRead ? "border-l-4 border-l-indigo-600 bg-indigo-50" :
+                notification.type === "success" ? "bg-green-50 border-l-4 border-l-green-400" :
+                notification.type === "warning" ? "bg-yellow-50 border-l-4 border-l-yellow-400" :
+                "bg-blue-50 border-l-4 border-l-blue-400"
+              }`}
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-4">
@@ -207,6 +265,24 @@ export function StudentNotificationsPage() {
           ))}
         </div>
       )}
+
+      {/* Clear All Confirmation Dialog */}
+      <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear All Notifications</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to clear all notifications? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleClearAll} className="bg-red-600 hover:bg-red-700">
+              Clear All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
