@@ -9,7 +9,7 @@ import {
 } from "@/app/components/ui/dialog";
 import {
   Building2, MapPin, Clock, CheckCircle, AlertCircle, Calendar,
-  Search, Loader2, Users, Mic, LogIn, LogOut, Clock3, XCircle,
+  Search, Loader2, Users, Mic, LogIn, LogOut, Clock3, XCircle, Flag,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -46,7 +46,7 @@ interface Company {
 // Statuses that allow clicking Join Queue
 const CAN_JOIN = [null, "not_joined", "exited", "rejected"];
 // Statuses that show Exit Queue button
-const CAN_EXIT = ["in_queue", "in_interview"];
+const CAN_EXIT = ["in_queue", "in_interview", "on-hold"];
 
 export function StudentMyCompaniesPage() {
   const { socket } = useSocket();
@@ -215,6 +215,8 @@ export function StudentMyCompaniesPage() {
         return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200"><Clock3 className="h-3 w-3 mr-1" />Requested</Badge>;
       case "in_queue":
         return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><Users className="h-3 w-3 mr-1" />In Queue</Badge>;
+      case "on-hold":
+        return <Badge className="bg-red-100 text-red-800 border-red-200"><Flag className="h-3 w-3 mr-1" />Flagged</Badge>;
       case "in_interview":
         return <Badge className="bg-orange-100 text-orange-800 border-orange-200"><Mic className="h-3 w-3 mr-1" />Interviewing</Badge>;
       case "completed":
@@ -275,7 +277,7 @@ export function StudentMyCompaniesPage() {
         </div>
       );
     }
-    if (s === "in_queue") {
+    if (s === "in_queue" || s === "on-hold") {
       return (
         <div className="flex items-center gap-3">
           <div className="flex flex-col items-center bg-blue-50 border border-blue-200 rounded-md px-3 py-1 mr-2">
@@ -354,6 +356,8 @@ export function StudentMyCompaniesPage() {
         return "border-yellow-300 bg-yellow-50/40 shadow-sm";
       case "in_queue":
         return "border-blue-300 bg-blue-50/40 shadow-sm";
+      case "on-hold":
+        return "border-red-300 bg-red-50/20 shadow-sm";
       case "in_interview":
         return "border-orange-300 bg-orange-50/30 shadow-sm";
       case "completed":
