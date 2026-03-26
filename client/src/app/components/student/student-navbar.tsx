@@ -6,6 +6,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from "@/app/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/app/components/ui/alert-dialog";
 
 interface StudentNavbarProps {
   onNavigate: (page: string) => void;
@@ -80,14 +91,34 @@ export function StudentNavbar({ onNavigate, userName, unreadNotifications = 0 }:
             </DropdownMenu>
 
             {/* Logout */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-              onClick={() => onNavigate("logout")}
-            >
-              <LogOut className="h-5 w-5" />
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <LogOut className="h-5 w-5" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure you want to log out?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will end your current session and return you to the login screen.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={() => onNavigate("logout")}
+                    className="bg-red-600 focus:ring-red-600 hover:bg-red-700"
+                  >
+                    Log out
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
 

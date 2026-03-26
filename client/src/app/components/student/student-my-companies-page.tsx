@@ -11,6 +11,17 @@ import {
   Building2, MapPin, Clock, CheckCircle, AlertCircle, Calendar,
   Search, Loader2, Users, Mic, LogIn, LogOut, Clock3, XCircle,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/app/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 import { studentApi } from "@/app/lib/api";
 import { useSocket } from "@/app/socket-context";
@@ -237,12 +248,30 @@ export function StudentMyCompaniesPage() {
           <div className="flex items-center text-sm font-medium text-yellow-700 bg-yellow-50 border border-yellow-300 rounded-md h-9 px-3">
             <Clock3 className="h-4 w-4 mr-1" />Requested
           </div>
-          <Button size="sm" variant="outline"
-            className="text-red-600 border-red-300 hover:bg-red-50 h-9 px-3"
-            onClick={() => handleLeaveQueue(company)} disabled={busy}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4 mr-1" />}
-            Cancel
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" variant="outline"
+                className="text-red-600 border-red-300 hover:bg-red-50 h-9 px-3"
+                disabled={busy}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4 mr-1" />}
+                Cancel
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Cancel Queue Request?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to cancel your queue request for {company.name}?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>No, keep it</AlertDialogCancel>
+                <AlertDialogAction onClick={() => handleLeaveQueue(company)} className="bg-red-600 focus:ring-red-600 hover:bg-red-700">
+                  Yes, cancel request
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       );
     }
@@ -255,11 +284,29 @@ export function StudentMyCompaniesPage() {
               {company.queuePosition ? `#${company.queuePosition}` : "—"}
             </span>
           </div>
-          <Button size="sm" variant="outline"
-            className="text-red-600 border-red-300 hover:bg-red-50 min-w-[110px] h-10"
-            onClick={() => handleLeaveQueue(company)} disabled={busy}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogOut className="h-4 w-4 mr-1" />Exit Queue</>}
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" variant="outline"
+                className="text-red-600 border-red-300 hover:bg-red-50 min-w-[110px] h-10"
+                disabled={busy}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogOut className="h-4 w-4 mr-1" />Exit Queue</>}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Exit Queue?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to leave the queue for {company.name}? You will lose your current position.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => handleLeaveQueue(company)} className="bg-red-600 focus:ring-red-600 hover:bg-red-700">
+                  Yes, leave queue
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       );
     }
@@ -272,11 +319,29 @@ export function StudentMyCompaniesPage() {
     }
     if (CAN_EXIT.includes(s ?? "")) {
       return (
-        <Button size="sm" variant="outline"
-          className="text-red-600 border-red-300 hover:bg-red-50 min-w-[110px]"
-          onClick={() => handleLeaveQueue(company)} disabled={busy}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogOut className="h-4 w-4 mr-1" />Exit Queue</>}
-        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button size="sm" variant="outline"
+              className="text-red-600 border-red-300 hover:bg-red-50 min-w-[110px]"
+              disabled={busy}>
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogOut className="h-4 w-4 mr-1" />Exit Queue</>}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Exit Queue?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to leave the queue for {company.name}? You will lose your current position.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => handleLeaveQueue(company)} className="bg-red-600 focus:ring-red-600 hover:bg-red-700">
+                Yes, leave queue
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       );
     }
     return null;
