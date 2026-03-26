@@ -1,7 +1,7 @@
 const User = require("../models/User.model");
 const Apc = require("../models/Apc.model");
 const crypto = require("crypto");
-const { sendCocoWelcomeEmail } = require("./email.service");
+const { sendApcWelcomeEmail } = require("./email.service");
 
 const createApc = async (data) => {
   const { name, email, rollNumber, contact } = data;
@@ -53,7 +53,7 @@ const createApc = async (data) => {
 
   let emailSent = false;
   try {
-    await sendCocoWelcomeEmail(finalEmail, name, instituteId, finalPassword);
+    await sendApcWelcomeEmail(finalEmail, name, instituteId, finalPassword);
     emailSent = true;
   } catch (emailErr) {
     console.error(`[createApc] Non-fatal: Failed to send welcome email to ${finalEmail}:`, emailErr);
