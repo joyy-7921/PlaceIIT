@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { adminApi } from "@/app/lib/api";
 import { useSocket } from "@/app/socket-context";
+import { formatSlotLabel } from "@/app/lib/format";
 
 interface APCHomePageProps {
   userName: string;
@@ -52,7 +53,7 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
       const items: ScheduleItem[] = companies.slice(0, 5).map((c: any, i: number) => ({
         id: c._id ?? String(i),
         company: c.name ?? "—",
-        time: c.slot ?? "—",
+        time: formatSlotLabel(c.slot),
         venue: c.venue ?? "TBA",
         candidates: c.shortlistedStudents?.length ?? 0,
         status: c.walkInOpen ? "ongoing" : "upcoming",
@@ -215,6 +216,14 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
             >
               <Building2 className="h-6 w-6 text-purple-600" />
               <span className="text-sm font-medium">Manage Companies</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-auto py-4 flex-col gap-2 bg-white hover:bg-indigo-50 hover:border-indigo-300"
+              onClick={() => onNavigate("queries")}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 text-amber-600"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
+              <span className="text-sm font-medium">Student Queries</span>
             </Button>
             <Button
               variant="outline"

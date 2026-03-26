@@ -15,9 +15,9 @@ const dummyCompanies = [
 ];
 
 const dummyStudents = [
-  { instituteId: "2021CS102", email: "amit@placeiit.in", password: "password123", name: "Amit Singh", rollNumber: "2021CS102" },
-  { instituteId: "2021EE045", email: "sneha@placeiit.in", password: "password123", name: "Sneha Patel", rollNumber: "2021EE045" },
-  { instituteId: "2021ME012", email: "karan@placeiit.in", password: "password123", name: "Karan Gupta", rollNumber: "2021ME012" }
+  { instituteId: "2021CS102", email: "amit@placeiit.in", password: "password123", name: "Amit Singh", rollNumber: "2021CS102", phone: "9876543210" },
+  { instituteId: "2021EE045", email: "sneha@placeiit.in", password: "password123", name: "Sneha Patel", rollNumber: "2021EE045", phone: "9876543211" },
+  { instituteId: "2021ME012", email: "karan@placeiit.in", password: "password123", name: "Karan Gupta", rollNumber: "2021ME012", phone: "9876543212" }
 ];
 
 async function seedDummyData() {
@@ -40,10 +40,10 @@ async function seedDummyData() {
   let defaultCocoUser = await User.findOne({ email: "coco@placeiit.in" });
   if (!defaultCocoUser) {
     defaultCocoUser = await User.create({
-        instituteId: "coco001",
-        email: "coco@placeiit.in",
-        password: "coco123",
-        role: "coco",
+      instituteId: "coco001",
+      email: "coco@placeiit.in",
+      password: "coco123",
+      role: "coco",
     });
     await Coordinator.create({ userId: defaultCocoUser._id, name: "Priya Sharma", rollNumber: "2020EC045" });
     console.log("Created missing default CoCo user (coco001)");
@@ -74,7 +74,7 @@ async function seedDummyData() {
         password: s.password,
         role: "student",
       });
-      const newStudent = await Student.create({ userId: existingUser._id, name: s.name, rollNumber: s.rollNumber });
+      const newStudent = await Student.create({ userId: existingUser._id, name: s.name, rollNumber: s.rollNumber, phone: s.phone });
       createdStudents.push(newStudent._id);
       console.log(`Created dummy student: ${s.name}`);
     } else {
@@ -134,7 +134,7 @@ async function seedDummyData() {
       interviewers: ["Interviewer 3"],
       venue: c.venue
     });
-    
+
     // Update round with panels
     await InterviewRound.findByIdAndUpdate(round1._id, {
       $push: { panels: { $each: [panelA._id, panelB._id] } }
@@ -148,7 +148,7 @@ async function seedDummyData() {
       await Queue.create({
         companyId: company._id,
         studentId: studentId,
-        status: "not_joined", 
+        status: "not_joined",
         position: position++,
         isWalkIn: false
       });
@@ -158,7 +158,7 @@ async function seedDummyData() {
 
   console.log("\\n✅ Dummy Data Seeding Complete (Optimized for CoCo)!");
   console.log("You can now login as coco001 / coco123 and see the assigned companies, panels, and queues.");
-  
+
   await mongoose.disconnect();
 }
 

@@ -61,8 +61,8 @@ const addStudentToQueue = async (req, res) => {
 // @route   PUT /api/coco/queue/status
 const updateStudentStatus = async (req, res) => {
   try {
-    const { studentId, companyId, status, roundId, panelId } = req.body;
-    const result = await queueService.updateStatus(studentId, companyId, status, roundId, panelId);
+    const { studentId, companyId, status, roundId, panelId, round = "Round 1" } = req.body;
+    const result = await queueService.updateStatus(studentId, companyId, status, roundId, panelId, round);
     res.json(result);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -171,9 +171,9 @@ const updatePanel = async (req, res) => {
     if (resolvedRoundId !== undefined) updateData.roundId = resolvedRoundId;
     if (venue !== undefined) updateData.venue = venue;
     if (status !== undefined) updateData.status = status;
-    
+
     const panel = await Panel.findByIdAndUpdate(req.params.id, updateData, { new: true });
-    
+
     const { getIO } = require("../config/socket");
     const io = getIO();
     if (io && panel) io.to(panel.companyId.toString()).emit("status:updated");
@@ -189,21 +189,22 @@ const updatePanel = async (req, res) => {
 const assignPanelStudent = async (req, res) => {
   try {
     const { studentId } = req.body;
-    const panel = await Panel.findById(req.params.id);
+    const panel = await Panel.findById(req.params.id).populate("roundId");
     if (!panel) return res.status(404).json({ message: "Panel not found" });
 
     panel.status = "occupied";
     panel.currentStudent = studentId;
     await panel.save();
 
-    let queueEntry = await Queue.findOne({ studentId, companyId: panel.companyId }).sort({ createdAt: -1 });
+    const roundNameStr = panel.roundId ? (panel.roundId.roundName || `Round ${panel.roundId.roundNumber}`) : "Round 1";
+    let queueEntry = await Queue.findOne({ studentId, companyId: panel.companyId, round: roundNameStr }).sort({ createdAt: -1 });
     if (queueEntry) {
       queueEntry.status = "in_interview";
       queueEntry.panelId = panel._id;
       queueEntry.interviewStartedAt = new Date();
       await queueEntry.save();
     }
-    
+
     const { getIO } = require("../config/socket");
     const io = getIO();
     if (io) io.to(`company:${panel.companyId.toString()}`).emit("queue:updated");
@@ -219,11 +220,12 @@ const assignPanelStudent = async (req, res) => {
 // @route   PUT /api/coco/panel/:id/clear
 const clearPanel = async (req, res) => {
   try {
-    const panel = await Panel.findById(req.params.id);
+    const panel = await Panel.findById(req.params.id).populate("roundId");
     if (!panel) return res.status(404).json({ message: "Panel not found" });
 
     if (panel.currentStudent) {
-      let queueEntry = await Queue.findOne({ studentId: panel.currentStudent, companyId: panel.companyId }).sort({ createdAt: -1 });
+      const roundNameStr = panel.roundId ? (panel.roundId.roundName || `Round ${panel.roundId.roundNumber}`) : "Round 1";
+      let queueEntry = await Queue.findOne({ studentId: panel.currentStudent, companyId: panel.companyId, round: roundNameStr }).sort({ createdAt: -1 });
       if (queueEntry) {
         queueEntry.status = "completed";
         queueEntry.completedAt = new Date();
@@ -254,9 +256,15 @@ const getRounds = async (req, res) => {
 
     // For each round, find students associated with it via Queue status
     const augmentedRounds = await Promise.all(rounds.map(async (round) => {
+      const roundNameStr = round.roundName || `Round ${round.roundNumber}`;
+      const fallbackRoundStr = `Round ${round.roundNumber}`;
       const queueEntries = await Queue.find({
         companyId: req.params.companyId,
-        roundId: round._id
+        $or: [
+          { roundId: round._id },
+          { round: roundNameStr },
+          { round: fallbackRoundStr }
+        ]
       }).populate({
         path: "studentId",
         populate: { path: "userId", select: "email" }
@@ -284,38 +292,55 @@ const addStudentToRound = async (req, res) => {
   try {
     const { studentId, companyId, roundId, roundNumber } = req.body;
 
-    // Resolve the round: use provided roundId, or find/create by roundNumber
+    let resolvedRoundObj = null;
     let resolvedRoundId = roundId;
-    if (!resolvedRoundId && roundNumber) {
-      let round = await InterviewRound.findOne({ companyId, roundNumber });
-      if (!round) {
-        round = await InterviewRound.create({
+    if (resolvedRoundId) {
+      resolvedRoundObj = await InterviewRound.findById(resolvedRoundId);
+    } else if (roundNumber) {
+      resolvedRoundObj = await InterviewRound.findOne({ companyId, roundNumber });
+      if (!resolvedRoundObj) {
+        resolvedRoundObj = await InterviewRound.create({
           companyId,
           roundNumber,
           roundName: `Round ${roundNumber}`,
         });
       }
-      resolvedRoundId = round._id;
+      resolvedRoundId = resolvedRoundObj._id;
     }
 
-    // Find or create queue entry
-    let queueEntry = await Queue.findOne({ studentId, companyId });
+    // Translate frontend 'yet-to-interview' to backend 'not_joined'
+    let inputStatus = req.body.status === "yet-to-interview" ? "not_joined" : req.body.status;
+    let finalStatus = inputStatus || "in_queue";
 
-    // Calculate next position for this specific round
-    const lastEntry = await Queue.findOne({ companyId, roundId: resolvedRoundId, status: { $in: ["in_queue", "in_interview"] } }).sort({ position: -1 });
-    const nextPosition = (lastEntry && lastEntry.position ? lastEntry.position : 0) + 1;
+    const roundNameStr = resolvedRoundObj ? (resolvedRoundObj.roundName || `Round ${resolvedRoundObj.roundNumber}`) : "Round 1";
+
+    // Find or create queue entry
+    let queueEntry = await Queue.findOne({ studentId, companyId, round: roundNameStr });
 
     if (queueEntry) {
+      if (queueEntry.roundId?.toString() === resolvedRoundId.toString() && ["in_queue", "in_interview", "on_hold", "not_joined"].includes(queueEntry.status)) {
+        return res.status(400).json({ message: "Student is actively in this round's queue already." });
+      }
+
+      // Calculate next position for this specific round
+      const lastEntry = await Queue.findOne({ companyId, roundId: resolvedRoundId, status: { $in: ["in_queue", "in_interview"] } }).sort({ position: -1 });
+      const nextPosition = (lastEntry && lastEntry.position ? lastEntry.position : 0) + 1;
+
       queueEntry.roundId = resolvedRoundId;
-      queueEntry.status = "in_queue";
+      queueEntry.status = finalStatus;
       queueEntry.position = nextPosition;
       await queueEntry.save();
     } else {
+      // Calculate next position for this specific round
+      const lastEntry = await Queue.findOne({ companyId, roundId: resolvedRoundId, status: { $in: ["in_queue", "in_interview"] } }).sort({ position: -1 });
+      const nextPosition = (lastEntry && lastEntry.position ? lastEntry.position : 0) + 1;
+
       queueEntry = await Queue.create({
         studentId,
         companyId,
         roundId: resolvedRoundId,
-        status: "in_queue",
+        round: roundNameStr,
+        status: finalStatus,
         position: nextPosition,
       });
     }
@@ -427,7 +452,11 @@ const getPredefinedNotifications = async (req, res) => {
 const Notification = require("../models/Notification.model");
 const getCocoNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({ recipientId: req.user.id })
+    const notifications = await Notification.find({
+      recipientId: req.user.id,
+      source: { $in: ["student", "apc"] }
+    })
+      .populate("senderId", "name rollNumber")
       .populate("companyId", "name")
       .sort({ createdAt: -1 })
       .limit(50);
@@ -448,6 +477,20 @@ const markNotifRead = async (req, res) => {
     );
     if (!notif) return res.status(404).json({ message: "Notification not found" });
     res.json(notif);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Clear all notifications for CoCo
+// @route   DELETE /api/coco/notifications
+const clearAllNotifications = async (req, res) => {
+  try {
+    await Notification.deleteMany({
+      recipientId: req.user.id,
+      source: { $in: ["student", "apc"] }
+    });
+    res.json({ message: "Notifications cleared" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -604,12 +647,61 @@ const promoteStudentsViaExcel = async (req, res) => {
   }
 };
 
+// @desc    Get pending queue requests for a company
+// @route   GET /api/coco/company/:companyId/pending
+const getPendingRequests = async (req, res) => {
+  try {
+    const { round = "Round 1" } = req.query;
+    const entries = await queueService.getPendingRequests(req.params.companyId, round);
+    res.json(entries);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Accept a pending queue request
+// @route   PUT /api/coco/queue/accept
+const acceptStudent = async (req, res) => {
+  try {
+    const { studentId, companyId, round = "Round 1" } = req.body;
+    const result = await queueService.acceptQueueRequest(studentId, companyId, round);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+// @desc    Reject a pending queue request
+// @route   PUT /api/coco/queue/reject
+const rejectStudent = async (req, res) => {
+  try {
+    const { studentId, companyId, round = "Round 1" } = req.body;
+    const result = await queueService.rejectQueueRequest(studentId, companyId, round);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+// @desc    Mark student interview as completed
+// @route   PUT /api/coco/queue/complete
+const markCompleted = async (req, res) => {
+  try {
+    const { studentId, companyId, round = "Round 1" } = req.body;
+    const result = await queueService.updateStatus(studentId, companyId, "completed", null, null, round);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getAssignedCompany, getShortlistedStudents, addStudentToQueue,
   updateStudentStatus, sendNotification, toggleWalkIn,
   addPanel, getPanels, updatePanel, assignPanelStudent, clearPanel,
   getRounds, addRound, getPredefinedNotifications,
   searchAllStudents, addStudentToRound, uploadStudentsToRound,
-  getCocoNotifications, markNotifRead, addStudentToCompany,
+  getCocoNotifications, markNotifRead, clearAllNotifications, addStudentToCompany,
   promoteStudentsViaExcel,
+  getPendingRequests, acceptStudent, rejectStudent, markCompleted,
 };

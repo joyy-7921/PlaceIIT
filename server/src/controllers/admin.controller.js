@@ -8,6 +8,8 @@ const allocationService = require("../services/allocation.service");
 const { sendWelcomeEmail } = require("../services/email.service");
 const { getIO } = require("../config/socket");
 const crypto = require("crypto");
+const { createApc } = require("../services/apc.service");
+const Apc = require("../models/Apc.model");
 
 const emitStatsUpdate = async () => {
   try {
@@ -62,10 +64,10 @@ const getCompanies = async (req, res) => {
 // @desc    Add a company manually
 // @route   POST /api/admin/companies
 const addCompany = async (req, res) => {
-  const { name, day, slot, venue } = req.body;
-  if (!name || day === undefined || !slot || !venue) {
-    return res.status(400).json({ message: "Name, Day, Slot, and Venue are required fields" });
-  }
+    const { name, day, slot, venue } = req.body;
+    if (!name || day === undefined || !slot || !venue) {
+      return res.status(400).json({ message: "Name, Day, Slot, and Venue are required fields" });
+    }
   try {
     const company = await Company.create(req.body);
     await emitStatsUpdate();
@@ -122,7 +124,7 @@ const getStudentCompanies = async (req, res) => {
     const studentId = req.params.id;
     // Find all companies where this student is shortlisted
     const companies = await Company.find({ shortlistedStudents: studentId });
-
+    
     // Check queue to determine status
     const Queue = require("../models/Queue.model");
     const queueEntries = await Queue.find({ studentId });
@@ -181,17 +183,17 @@ const { createCoco } = require("../services/coco.service");
 const addCoco = async (req, res) => {
   try {
     const { name, email, rollNumber, contact } = req.body;
-
+    
     try {
       const result = await createCoco({ name, email, rollNumber, contact });
       await emitStatsUpdate();
       res.status(201).json({ message: "CoCo added successfully and invitation email sent", ...result });
     } catch (err) {
       if (err.message.includes("Account created successfully, but welcome email failed")) {
-        await emitStatsUpdate();
-        res.status(201).json({ message: err.message });
+         await emitStatsUpdate();
+         res.status(201).json({ message: err.message });
       } else {
-        throw err;
+         throw err;
       }
     }
   } catch (err) {
@@ -206,13 +208,13 @@ const addStudent = async (req, res) => {
     console.log("[addStudent] Request body:", JSON.stringify(req.body));
     const { name, rollNumber, email, phone } = req.body;
     if (!name || !rollNumber || !email || !phone) return res.status(400).json({ message: "Name, Roll Number, Email ID, and Phone Number are required" });
+    
+    // Validate phone number format (must be 10 digits)
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone)) return res.status(400).json({ message: "Phone number must be exactly 10 digits" });
 
-    if (!email.toLowerCase().endsWith("@iitk.ac.in")) {
-      return res.status(400).json({ message: "Student email must use the @iitk.ac.in domain" });
-    }
+    const instituteId = rollNumber;
     const finalEmail = email;
-    const username = email.split('@')[0];
-    const instituteId = username; // Use prefix as username for login
 
     // Generate random 8-char password
     const generatedPassword = crypto.randomBytes(4).toString("hex");
@@ -239,27 +241,93 @@ const addStudent = async (req, res) => {
       rollNumber,
       phone,
     });
-
+    
     await emitStatsUpdate();
 
     let emailSent = false;
     try {
-      await sendWelcomeEmail(finalEmail, name, rollNumber, username, generatedPassword);
+      await sendWelcomeEmail(finalEmail, name, rollNumber, generatedPassword);
       emailSent = true;
     } catch (err) {
       console.error("[addStudent] Non-fatal error: Failed to send welcome email to", finalEmail, err);
     }
 
-    const resMessage = emailSent
-      ? "Student added successfully"
+    const resMessage = emailSent 
+      ? "Student added successfully" 
       : "Student added successfully (Warning: Welcome email could not be sent)";
 
-    res.status(201).json({
-      message: resMessage,
-      student,
+    res.status(201).json({ 
+      message: resMessage, 
+      student, 
       credentials: { instituteId, password: generatedPassword },
       emailSent
     });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Get all APCs
+// @route   GET /api/admin/apcs
+const getApcs = async (req, res) => {
+  try {
+    const apcs = await Apc.find().populate("userId", "email instituteId");
+    const result = apcs.map((a) => {
+      const obj = a.toObject();
+      obj.email = obj.userId?.email || "";
+      obj.instituteId = obj.userId?.instituteId || "";
+      return obj;
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Add a new APC (User + Apc model)
+// @route   POST /api/admin/apc
+const addApc = async (req, res) => {
+  try {
+    const { name, email, rollNumber, contact } = req.body;
+    
+    // Check if the current user is mainAdmin
+    const reqUser = await User.findById(req.user.id);
+    if (!reqUser || !reqUser.isMainAdmin) {
+      return res.status(403).json({ message: "Only main admin can create APCs" });
+    }
+
+    try {
+      const result = await createApc({ name, email, rollNumber, contact });
+      await emitStatsUpdate(); // optional: emit stats
+      res.status(201).json({ message: "APC added successfully and invitation email sent", ...result });
+    } catch (err) {
+      if (err.message.includes("Account created successfully, but welcome email failed")) {
+         await emitStatsUpdate();
+         res.status(201).json({ message: err.message });
+      } else {
+         throw err;
+      }
+    }
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+// @desc    Remove APC
+// @route   POST /api/admin/remove-apc
+const removeApc = async (req, res) => {
+  try {
+    const { apcId } = req.body;
+    const reqUser = await User.findById(req.user.id);
+    if (!reqUser || !reqUser.isMainAdmin) {
+      return res.status(403).json({ message: "Only main admin can remove APCs" });
+    }
+    const apc = await Apc.findById(apcId);
+    if (apc) {
+      await User.findByIdAndDelete(apc.userId);
+      await Apc.findByIdAndDelete(apcId);
+    }
+    res.json({ message: "APC removed successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -356,6 +424,28 @@ const uploadCocoExcel = async (req, res) => {
     const result = await excelService.processCocoExcel(upload._id, req.file.path);
     await emitStatsUpdate();
     res.json({ message: `${result.processed} CoCo(s) imported from Excel`, uploadId: upload._id, ...result });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Upload Excel - apc import
+// @route   POST /api/admin/upload/apcs
+const uploadApcExcel = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    const reqUser = await User.findById(req.user.id);
+    if (!reqUser || !reqUser.isMainAdmin) {
+      return res.status(403).json({ message: "Only main admin can upload APCs" });
+    }
+    const upload = await ExcelUpload.create({
+      uploadedBy: req.user.id,
+      fileName: req.file.originalname,
+      filePath: req.file.path,
+      type: "coordinator_requirements", // reusing type to satisfy any schema enum
+    });
+    const result = await excelService.processApcExcel(upload._id, req.file.path);
+    res.json({ message: `${result.processed} APC(s) imported from Excel`, uploadId: upload._id, ...result });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -546,7 +636,7 @@ const autoAllocateCocos = async (req, res) => {
           !company.assignedCocos.includes(c._id)
         );
 
-        // Step 2: If unused list is empty, allow reuse but still enforce day/slot
+        // Step 4: If unused list is empty, allow reuse but still enforce day/slot
         if (available.length === 0) {
           console.log(`[AutoAllocate] Reusing Co-Co after all exhausted for company ${company.name}`);
           available = cocos.filter(c => 
@@ -555,13 +645,13 @@ const autoAllocateCocos = async (req, res) => {
           );
         }
 
-        // Step 3: Randomly assign from available
+        // Step 6: Randomly assign from available
         if (available.length > 0) {
           const selected = available[Math.floor(Math.random() * available.length)];
           
           usedCoCos.add(selected._id.toString());
           cocoAssignments[selected._id.toString()].push({ day, slot });
-          company.assignedCocos.push(selected._id); 
+          company.assignedCocos.push(selected._id); // So we don't pick them again for the same company
 
           // Execute DB writes
           await Coordinator.findByIdAndUpdate(selected._id, {
@@ -646,10 +736,77 @@ const getCocoConflicts = async (req, res) => {
   }
 };
 
+// @desc    Get all student queries
+// @route   GET /api/admin/queries
+const getQueries = async (req, res) => {
+  try {
+    const Query = require("../models/Query.model");
+    const queries = await Query.find()
+      .populate("studentUserId", "instituteId email")
+      .sort({ createdAt: -1 });
+
+    // Try to attach student details if available
+    const Student = require("../models/Student.model");
+    const result = await Promise.all(
+      queries.map(async (q) => {
+        const queryObj = q.toObject();
+        const student = await Student.findOne({ userId: q.studentUserId?._id });
+        if (student) {
+          queryObj.studentName = student.name;
+          queryObj.studentRollNo = student.rollNumber;
+        } else {
+          queryObj.studentName = "Unknown";
+          queryObj.studentRollNo = q.studentUserId?.instituteId || "Unknown";
+        }
+        return queryObj;
+      })
+    );
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Respond to a student query
+// @route   PUT /api/admin/queries/:id
+const respondToQuery = async (req, res) => {
+  try {
+    const { response, status } = req.body;
+    const Query = require("../models/Query.model");
+    
+    if (!response && status !== "resolved") {
+      return res.status(400).json({ message: "Response is required" });
+    }
+
+    const query = await Query.findByIdAndUpdate(
+      req.params.id,
+      { response, status },
+      { new: true }
+    );
+
+    if (!query) return res.status(404).json({ message: "Query not found" });
+
+    // Optional: Send real-time notification to the student
+    const notificationService = require("../services/notification.service");
+    await notificationService.sendNotification({
+      recipientId: query.studentUserId,
+      senderId: req.user.id,
+      message: `Your query regarding "${query.subject}" has been updated to ${status}.`,
+      type: "general",
+    });
+
+    res.json(query);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getStats, getCompanies, addCompany, updateCompany,
-  searchStudents, getStudentCompanies, getCocos, addCoco, addStudent,
+  searchStudents, getStudentCompanies, getCocos, addCoco, addStudent, getApcs, addApc, removeApc,
   assignCoco, removeCoco,
-  uploadCompanyExcel, uploadShortlistExcel, uploadCocoExcel, uploadStudentExcel, uploadCocoRequirementsExcel, getUploadStatus,
-  shortlistStudents, getShortlistedStudents, autoAllocateCocos, getCocoConflicts
+  uploadCompanyExcel, uploadShortlistExcel, uploadCocoExcel, uploadApcExcel, uploadStudentExcel, uploadCocoRequirementsExcel, getUploadStatus,
+  shortlistStudents, getShortlistedStudents, autoAllocateCocos, getCocoConflicts,
+  getQueries, respondToQuery
 };

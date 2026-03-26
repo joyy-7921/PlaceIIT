@@ -30,6 +30,62 @@ interface Notification {
   isRead: boolean;
 }
 
+/** Derive a display type from backend type + message content. */
+const classifyNotificationType = (rawType: string | undefined, message: string): "info" | "warning" | "success" => {
+  const msg = (message || "").toLowerCase();
+
+  // interview_call is always urgent → ALERT
+  if (rawType === "interview_call") return "warning";
+
+  // Check for success-related keywords
+  const successKw = ["congratulations", "cleared", "completed", "selected", "offer", "accepted"];
+  if (successKw.some((kw) => msg.includes(kw))) return "success";
+
+  // Check for alert-related keywords
+  const alertKw = ["report immediately", "urgent", "be ready", "called for", "about to begin"];
+  if (alertKw.some((kw) => msg.includes(kw))) return "warning";
+
+  return "info";
+};
+
+/** User-facing label for notification type. */
+const getTypeLabel = (type: string): string => {
+  switch (type) {
+    case "warning": return "ALERT";
+    case "success": return "SUCCESS";
+    default: return "INFO";
+  }
+};
+
+/** Tailwind classes for the type label pill. */
+const getTypeLabelClasses = (type: string): string => {
+  switch (type) {
+    case "warning": return "bg-yellow-100 text-yellow-800 border border-yellow-300";
+    case "success": return "bg-green-100 text-green-800 border border-green-300";
+    default: return "bg-blue-100 text-blue-800 border border-blue-300";
+  }
+};
+
+/** Card background classes per type. */
+const getCardBgClasses = (type: string, isRead: boolean): string => {
+  // Use thicker left border for unread, regular border for read
+  const borderStyle = !isRead ? "border-l-4" : "border";
+  switch (type) {
+    case "success": return `${borderStyle} border-green-400`;
+    case "warning": return `${borderStyle} border-red-400`;
+    default: return `${borderStyle} border-blue-400`;
+  }
+};
+
+/** Inline style to force background color based on type. */
+const getCardBgStyle = (type: string): React.CSSProperties => {
+  switch (type) {
+    case "success": return { backgroundColor: "#dcfce7" }; // green-100
+    case "warning": return { backgroundColor: "#fee2e2" }; // red-100
+    default: return { backgroundColor: "#dbeafe" };        // blue-100
+  }
+};
+
 export function StudentNotificationsPage() {
   const { socket } = useSocket();
   const auth = useAuth();
@@ -39,15 +95,18 @@ export function StudentNotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-  const normalizeNotif = (raw: any): Notification => ({
-    id: raw._id ?? raw.id ?? "",
-    type: raw.type ?? "info",
-    title: raw.title ?? raw.subject ?? "Notification",
-    message: raw.message ?? raw.body ?? "",
-    company: raw.companyName ?? raw.company?.name ?? undefined,
-    timestamp: raw.createdAt ?? raw.timestamp ?? new Date().toISOString(),
-    isRead: raw.isRead ?? raw.read ?? false,
-  });
+  const normalizeNotif = (raw: any): Notification => {
+    const message = raw.message ?? raw.body ?? "";
+    return {
+      id: raw._id ?? raw.id ?? "",
+      type: classifyNotificationType(raw.type, message),
+      title: raw.title ?? raw.subject ?? "Notification",
+      message,
+      company: raw.companyName ?? raw.company?.name ?? undefined,
+      timestamp: raw.createdAt ?? raw.timestamp ?? new Date().toISOString(),
+      isRead: raw.isRead ?? raw.read ?? false,
+    };
+  };
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
@@ -198,7 +257,7 @@ export function StudentNotificationsPage() {
               <Input placeholder="Search notifications…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
             </div>
             <Select value={selectedFilter} onValueChange={setSelectedFilter}>
-              <SelectTrigger className="w-full md:w-48"><SelectValue placeholder="Filter by type" /></SelectTrigger>
+              <SelectTrigger className="w-full md:w-48"><SelectValue placeholder="Filter by Type" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="success">Success</SelectItem>
@@ -222,21 +281,22 @@ export function StudentNotificationsPage() {
           {filteredNotifications.map((notification) => (
             <Card
               key={notification.id}
-              className={`transition-all hover:shadow-md ${
-                !notification.isRead ? "border-l-4 border-l-indigo-600 bg-indigo-50" :
-                notification.type === "success" ? "bg-green-50 border-l-4 border-l-green-400" :
-                notification.type === "warning" ? "bg-yellow-50 border-l-4 border-l-yellow-400" :
-                "bg-blue-50 border-l-4 border-l-blue-400"
-              }`}
+              className={`transition-all hover:shadow-md ${getCardBgClasses(notification.type, notification.isRead)}`}
+              style={getCardBgStyle(notification.type)}
             >
               <CardHeader className="pb-3">
+                {/* Type Label Box */}
+                <div className="mb-2">
+                  <span className={`inline-block px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wide ${getTypeLabelClasses(notification.type)}`}>
+                    {getTypeLabel(notification.type)}
+                  </span>
+                </div>
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3 flex-1">
                     <div className="mt-1">{getNotificationIcon(notification.type)}</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <CardTitle className="text-base text-gray-900">{notification.title}</CardTitle>
-                        {getNotificationBadge(notification.type)}
                         {!notification.isRead && <Badge className="bg-indigo-600 text-white text-xs">New</Badge>}
                       </div>
                       {notification.company && (

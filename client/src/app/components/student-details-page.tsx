@@ -27,6 +27,7 @@ import {
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { formatSlotLabel } from "@/app/lib/format";
 interface Company {
   id: string;
   name: string;
@@ -44,6 +45,9 @@ interface StudentDetailsPageProps {
   email: string;
   phone: string;
   emergencyContact: string;
+  department: string;
+  cgpa: number;
+  resumeUrl: string;
   inInterview: boolean;
   interviewWith?: string;
   interviewVenue?: string;
@@ -59,6 +63,9 @@ export function StudentDetailsPage({
   email,
   phone,
   emergencyContact,
+  department,
+  cgpa,
+  resumeUrl,
   inInterview,
   interviewWith,
   interviewVenue,
@@ -180,6 +187,7 @@ export function StudentDetailsPage({
               </div>
             </div>
 
+
           </div>
 
           <div className="grid md:grid-cols-2 gap-6 mt-6">
@@ -206,36 +214,21 @@ export function StudentDetailsPage({
                 <div className="font-medium text-gray-900">{emergencyContact}</div>
               </div>
             </div>
-            {inInterview && interviewWith ? (
-              <div className="flex items-start gap-3 bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                <Clock className="h-5 w-5 text-yellow-700 mt-0.5" />
-                <div className="flex-1">
-                  <div className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mb-1">Current Interview</div>
-                  <div className="font-medium text-gray-900">
-                    Interviewing with {interviewWith} at {interviewVenue}
-                  </div>
-                </div>
-              </div>
-            ) : queuedFor ? (
-              <div className="flex items-start gap-3 bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <Clock className="h-5 w-5 text-blue-700 mt-0.5" />
-                <div className="flex-1">
-                  <div className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Queue Status</div>
-                  <div className="font-medium text-gray-900">
-                    Waiting in queue for <span className="font-bold">{queuedFor}</span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-start gap-3 bg-gray-50 p-4 rounded-lg border border-gray-100">
-                <Clock className="h-5 w-5 text-gray-400 mt-0.5" />
-                <div className="flex-1">
-                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Queue Status</div>
-                  <div className="font-medium text-gray-400">—</div>
-                </div>
-              </div>
-            )}
+
+
           </div>
+
+          {inInterview && interviewWith && (
+            <div className="flex items-start gap-3 bg-yellow-50 p-4 rounded-lg border border-yellow-200 mt-6">
+              <Clock className="h-5 w-5 text-yellow-700 mt-0.5" />
+              <div className="flex-1">
+                <div className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mb-1">Current Interview</div>
+                <div className="font-medium text-gray-900">
+                  Interviewing with {interviewWith} at {interviewVenue}
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -326,11 +319,9 @@ export function StudentDetailsPage({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Days</SelectItem>
-                  <SelectItem value="Monday">Monday</SelectItem>
-                  <SelectItem value="Tuesday">Tuesday</SelectItem>
-                  <SelectItem value="Wednesday">Wednesday</SelectItem>
-                  <SelectItem value="Thursday">Thursday</SelectItem>
-                  <SelectItem value="Friday">Friday</SelectItem>
+                  <SelectItem value="Day 1">Day 1</SelectItem>
+                  <SelectItem value="Day 2">Day 2</SelectItem>
+                  <SelectItem value="Day 3">Day 3</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -370,7 +361,7 @@ export function StudentDetailsPage({
                         <Clock className="h-4 w-4" />
                         <div>
                           <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Slot</div>
-                          <div className="font-medium text-gray-900">{company.slot}</div>
+                          <div className="font-medium text-gray-900">{formatSlotLabel(company.slot)}</div>
                         </div>
                       </div>
 
@@ -393,6 +384,6 @@ export function StudentDetailsPage({
           )}
         </div>
       </div>
-    </div >
+    </div>
   );
 }

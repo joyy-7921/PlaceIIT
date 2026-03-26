@@ -16,19 +16,22 @@ const login = async (req, res) => {
       return res.status(400).json({ message: "Institute ID and password are required" });
 
     const user = await User.findOne({ instituteId });
-    if (!user || !(await user.comparePassword(password)))
+    if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });
-
-    // Enforce role-based access on backend
-    if (role && user.role !== role) {
-      const roleName = user.role.charAt(0).toUpperCase() + user.role.slice(1);
-      return res.status(401).json({ 
-        message: `Access denied. These credentials belong to a ${roleName} account.` 
-      });
     }
 
-    if (!user.isActive)
-      return res.status(403).json({ message: "Account is deactivated" });
+    if (!user.isActive) {
+      return res.status(403).json({ message: "This account is deactivated" });
+    }
+
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    if (role && user.role !== role) {
+      return res.status(403).json({ message: "Access denied for this role" });
+    }
 
     user.lastLogin = new Date();
     await user.save();
@@ -37,10 +40,10 @@ const login = async (req, res) => {
 
     res.json({
       token,
-      user: { 
-        id: user._id, 
-        instituteId: user.instituteId, 
-        role: user.role, 
+      user: {
+        id: user._id.toString(),
+        instituteId: user.instituteId,
+        role: user.role,
         email: user.email,
         mustChangePassword: user.mustChangePassword 
       },
@@ -55,7 +58,20 @@ const login = async (req, res) => {
 // @access  Private
 const getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select("-password");
+    const user = await User.findById(req.user.id).select("-password").lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    let profile = null;
+    if (user.role === ROLES.STUDENT) profile = await Student.findOne({ userId: user._id });
+    else if (user.role === ROLES.COCO) profile = await Coordinator.findOne({ userId: user._id });
+    // APC profile could be added here if needed, but Student and Coordinator cover the main ones.
+
+    if (profile) {
+      user.name = profile.name;
+      user.contact = profile.contact || profile.phone;
+      user.department = profile.department || profile.branch;
+    }
+
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -213,13 +229,15 @@ const changePassword = async (req, res) => {
     user.mustChangePassword = false;
     await user.save();
 
-    res.json({ message: "Password changed successfully", user: {
-      id: user._id,
-      instituteId: user.instituteId,
-      role: user.role,
-      email: user.email,
-      mustChangePassword: false 
-    }});
+    res.json({
+      message: "Password changed successfully", user: {
+        id: user._id,
+        instituteId: user.instituteId,
+        role: user.role,
+        email: user.email,
+        mustChangePassword: false
+      }
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

@@ -4,7 +4,7 @@ const multer = require("multer");
 const path = require("path");
 const {
   getProfile, updateProfile, getMyCompanies,
-  joinQueue, joinWalkIn, leaveQueue, getWalkIns, getQueuePosition,
+  joinQueue, joinWalkIn, leaveQueue, confirmSwitch, getWalkIns, getQueuePosition,
   getNotifications, markNotifRead, markAllNotifRead, clearAllNotifications,
   submitQuery, getMyQueries,
   uploadResume,
@@ -34,6 +34,7 @@ router.get("/companies", getMyCompanies);
 router.post("/queue/join", joinQueue);
 router.post("/queue/walkin", joinWalkIn);
 router.post("/queue/leave", leaveQueue);
+router.post("/queue/confirm-switch", confirmSwitch);
 router.get("/queue/:companyId", getQueuePosition);
 router.get("/walkins", getWalkIns);
 router.get("/notifications", getNotifications);

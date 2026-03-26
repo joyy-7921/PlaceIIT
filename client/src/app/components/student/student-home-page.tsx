@@ -3,8 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/ca
 import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle,
+} from "@/app/components/ui/dialog";
+
+import {
+  Search, Building2, MapPin, Clock, Users, CheckCircle,
+  AlertCircle, Loader2, Mic, LogIn, LogOut, Clock3, XCircle
+} from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
-import { Search, Building2, MapPin, Clock, Users, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { studentApi } from "@/app/lib/api";
 import { useSocket } from "@/app/socket-context";
 import { toast } from "sonner";
@@ -17,40 +25,42 @@ interface Company {
   venue: string;
   day: string;
   slot: string;
-  status: "upcoming" | "in-queue" | "completed" | "rejected" | "offer_given";
-  queuePosition?: number;
+  queueStatus: string | null;
+  queuePosition: number | null;
   totalInQueue?: number;
   currentQueue?: number;
   priority: number;
-  round: number;
-  isWalkin?: boolean;
-  isInQueue?: boolean;
+  round: string;
+  isWalkin: boolean;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  "upcoming": "Upcoming",
-  "in-queue": "In Queue",
-  "in_queue": "In Queue",
-  "completed": "Completed",
-  "rejected": "Rejected",
-  "offer_given": "Offer Given",
-};
+const CAN_JOIN = [null, "not_joined", "exited", "rejected", "upcoming"];
+const CAN_EXIT = ["in_queue", "in-queue", "in_interview"];
 
 export function StudentHomePage() {
   const { socket } = useSocket();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedSlot, setSelectedSlot] = useState("all");
+  const [selectedRound, setSelectedRound] = useState("all");
   const [companies, setCompanies] = useState<Company[]>([]);
   const [walkinCompanies, setWalkinCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const walkinRef = useRef<HTMLDivElement>(null);
+
+  const [switchModal, setSwitchModal] = useState<{
+    fromCompanyId: string;
+    fromCompanyName: string;
+    fromRound: string;
+    toCompanyId: string;
+    toCompanyName: string;
+    toRound: string;
+    isWalkIn: boolean;
+  } | null>(null);
 
   const normalizeCompany = (raw: any, index: number, isWalkin = false): Company => {
     const queueEntry = raw.queueEntry ?? raw.queue ?? null;
-    const statusRaw: string = queueEntry?.status ?? raw.status ?? "upcoming";
-    const status = (statusRaw === "in_queue" ? "in-queue" : statusRaw) as Company["status"];
-
-    const isInQueue = !!(queueEntry && ["in_queue", "in-queue"].includes(queueEntry.status ?? ""));
+    let statusRaw = queueEntry?.status ?? raw.status ?? null;
+    if (statusRaw === "upcoming") statusRaw = null;
 
     return {
       id: raw._id ?? raw.id ?? raw.company?._id ?? String(index),
@@ -60,14 +70,13 @@ export function StudentHomePage() {
       venue: raw.venue ?? raw.company?.venue ?? "TBA",
       day: raw.day != null ? `Day ${raw.day}` : raw.company?.day != null ? `Day ${raw.company.day}` : "—",
       slot: raw.slot ?? raw.company?.slot ?? "—",
-      status,
+      queueStatus: statusRaw,
       queuePosition: queueEntry?.position ?? undefined,
       totalInQueue: raw.totalInQueue ?? undefined,
       currentQueue: raw.currentQueue ?? undefined,
       priority: raw.priorityOrder ?? raw.order ?? index + 1,
-      round: raw.currentRound ?? raw.company?.currentRound ?? 1,
+      round: raw.round ?? "Round 1",
       isWalkin,
-      isInQueue,
     };
   };
 
@@ -90,7 +99,7 @@ export function StudentHomePage() {
       setCompanies(companyList.map((c: any, i: number) => normalizeCompany(c, i, false)));
       setWalkinCompanies(walkinList.map((c: any, i: number) => normalizeCompany(c, i, true)));
     } catch (err: any) {
-      toast.error("Failed to load companies: " + (err.message ?? ""));
+      toast.error("Failed to load companies", { description: err.message });
     } finally {
       setLoading(false);
     }
@@ -98,198 +107,229 @@ export function StudentHomePage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // ── Real-time updates ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!socket) return;
-
-    const handleStatusUpdate = ({ companyId }: { companyId?: string }) => {
-      fetchData();
-      toast.info("Your interview status was updated.");
-      // Also join the specific company room if we know it
-      if (companyId) socket.emit("join:company", companyId);
-    };
-
-    const handleQueueUpdate = ({ companyId }: { companyId?: string }) => {
-      fetchData();
-      if (companyId) socket.emit("join:company", companyId);
-    };
-
-    socket.on("status:updated", handleStatusUpdate);
-    socket.on("queue:updated", handleQueueUpdate);
-    socket.on("walkin:updated", handleQueueUpdate);
-
+    const refresh = () => fetchData();
+    socket.on("status:updated", refresh);
+    socket.on("queue:updated", refresh);
+    socket.on("walkin:updated", refresh);
     return () => {
-      socket.off("status:updated", handleStatusUpdate);
-      socket.off("queue:updated", handleQueueUpdate);
-      socket.off("walkin:updated", handleQueueUpdate);
+      socket.off("status:updated", refresh);
+      socket.off("queue:updated", refresh);
+      socket.off("walkin:updated", refresh);
     };
   }, [socket, fetchData]);
 
-  // Join company rooms once companies are loaded
-  useEffect(() => {
-    if (!socket) return;
-    const inQueueCompanies = companies.filter((c) =>
-      c.status === "in-queue" || (c.status as any) === "in_queue"
-    );
-    inQueueCompanies.forEach((c) => socket.emit("join:company", c.id));
-  }, [socket, companies]);
-  // ─────────────────────────────────────────────────────────────────────────
+  const optimisticUpdate = (companyId: string, round: string, newStatus: string | null) => {
+    setCompanies(prev => prev.map(c => (c.id === companyId && c.round === round) ? { ...c, queueStatus: newStatus } : c));
+    setWalkinCompanies(prev => prev.map(c => (c.id === companyId && c.round === round) ? { ...c, queueStatus: newStatus } : c));
+  };
 
-  const currentDay = companies.length > 0
-    ? [...new Set(companies.map((c) => c.day))][0]
-    : "Today";
-
-  const handleJoinQueue = async (companyId: string) => {
+  const handleJoinQueue = async (company: Company) => {
+    setActionLoading(`${company.id}-${company.round}`);
+    optimisticUpdate(company.id, company.round, "pending");
     try {
-      await studentApi.joinQueue(companyId);
-      toast.success("Joined queue successfully!");
-      await fetchData();
+      if (company.isWalkin) {
+        await studentApi.joinWalkInQueue(company.id, company.round);
+      } else {
+        await studentApi.joinQueue(company.id, company.round);
+      }
+      toast.success(`Join request sent to ${company.name} (${company.round})!`, { description: "Waiting for COCO to accept." });
     } catch (err: any) {
-      toast.error(err.message ?? "Failed to join queue");
+      const errData = err.data;
+      if (errData?.code === "QUEUE_CONFLICT" || err.status === 409) {
+        optimisticUpdate(company.id, company.round, company.queueStatus);
+        setSwitchModal({
+          fromCompanyId: errData?.conflictCompanyId ?? "",
+          fromCompanyName: errData?.conflictCompanyName ?? "another company",
+          fromRound: errData?.conflictRound ?? "Round 1",
+          toCompanyId: company.id,
+          toCompanyName: company.name,
+          toRound: company.round,
+          isWalkIn: company.isWalkin,
+        });
+      } else {
+        optimisticUpdate(company.id, company.round, company.queueStatus);
+        toast.error("Could not send join request", { description: err.message });
+      }
+    } finally {
+      setActionLoading(null);
     }
   };
 
-  const handleJoinWalkin = async (companyId: string) => {
+  const handleLeaveQueue = async (company: Company) => {
+    setActionLoading(`${company.id}-${company.round}`);
+    const prevStatus = company.queueStatus;
+    optimisticUpdate(company.id, company.round, "exited");
     try {
-      await studentApi.joinWalkInQueue(companyId);
-      toast.success("Joined walk-in queue!");
-      await fetchData();
+      await studentApi.leaveQueue(company.id, company.round);
+      toast.success(`You have left the queue for ${company.name} (${company.round}).`);
     } catch (err: any) {
-      toast.error(err.message ?? "Failed to join walk-in queue");
+      optimisticUpdate(company.id, company.round, prevStatus);
+      toast.error("Could not exit queue", { description: err.message });
+    } finally {
+      setActionLoading(null);
     }
   };
 
-  const handleLeaveQueue = async (companyId: string) => {
+  const handleConfirmSwitch = async () => {
+    if (!switchModal) return;
+    const { fromCompanyId, fromRound, toCompanyId, toCompanyName, toRound, isWalkIn } = switchModal;
+    setSwitchModal(null);
+    setActionLoading(`${toCompanyId}-${toRound}`);
+    optimisticUpdate(toCompanyId, toRound, "pending");
+    optimisticUpdate(fromCompanyId, fromRound, "exited");
     try {
-      await studentApi.leaveQueue(companyId);
-      toast.success("Left queue successfully");
-      await fetchData();
+      await studentApi.confirmSwitch(fromCompanyId, toCompanyId, isWalkIn, fromRound, toRound);
+      toast.success(`Switched to ${toCompanyName} (${toRound})!`, { description: "Waiting for COCO to accept." });
     } catch (err: any) {
-      toast.error(err.message ?? "Failed to leave queue");
+      await fetchData();
+      toast.error("Could not switch queues", { description: err.message });
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const scrollToWalkin = () => walkinRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
-  const sortedCompanies = [...companies].sort((a, b) => {
-    const order: Record<string, number> = { "in-queue": 0, "upcoming": 1, "completed": 2, "offer_given": 3, "rejected": 3 };
-    const diff = (order[a.status] ?? 9) - (order[b.status] ?? 9);
-    return diff !== 0 ? diff : a.priority - b.priority;
-  });
+  const getStatusBadge = (status: string | null) => {
+    switch (status) {
+      case "pending": return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200"><Clock3 className="h-3 w-3 mr-1" />Requested</Badge>;
+      case "in_queue":
+      case "in-queue": return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><Users className="h-3 w-3 mr-1" />In Queue</Badge>;
+      case "in_interview": return <Badge className="bg-orange-100 text-orange-800 border-orange-200"><Mic className="h-3 w-3 mr-1" />Interviewing</Badge>;
+      case "completed":
+      case "offer_given": return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle className="h-3 w-3 mr-1" />Completed</Badge>;
+      case "rejected": return <Badge className="bg-red-100 text-red-800 border-red-200"><XCircle className="h-3 w-3 mr-1" />Rejected</Badge>;
+      case "exited": return <Badge className="bg-gray-100 text-gray-600 border-gray-200"><LogOut className="h-3 w-3 mr-1" />Exited</Badge>;
+      default: return null;
+    }
+  };
 
-  const filteredCompanies = sortedCompanies.filter((company) => {
-    const matchesSearch =
-      company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      company.role.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesSlot = selectedSlot === "all" || company.slot === selectedSlot;
-    return matchesSearch && matchesSlot;
-  });
+  const getCardClass = (status: string | null) => {
+    switch (status) {
+      case "pending": return "border-yellow-300 bg-yellow-50/40 shadow-sm";
+      case "in_queue":
+      case "in-queue": return "border-blue-300 bg-blue-50/40 shadow-sm";
+      case "in_interview": return "border-orange-300 bg-orange-50/30 shadow-sm";
+      case "completed":
+      case "offer_given": return "border-green-300 bg-green-50/30 shadow-sm";
+      default: return "hover:shadow-md";
+    }
+  };
 
-  const uniqueSlots = [...new Set([...companies, ...walkinCompanies].map((c) => c.slot))].filter(Boolean);
+  const renderCompanyCard = (company: Company) => {
+    const s = company.queueStatus;
+    const busy = actionLoading === `${company.id}-${company.round}`;
 
-  const renderCompanyCard = (company: Company) => (
-    <Card key={company.id} className="hover:shadow-lg transition-shadow">
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-start space-x-3 flex-1">
-            <div className="h-12 w-12 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
-              {company.logo ? (
-                <img
-                  src={company.logo}
-                  alt={company.name}
-                  className="h-8 w-8 object-contain"
-                  onError={(e) => {
-                    const t = e.currentTarget;
-                    t.style.display = "none";
-                    const span = document.createElement("span");
-                    span.className = "text-lg font-bold text-gray-700";
-                    span.textContent = company.name.charAt(0);
-                    t.parentElement?.appendChild(span);
-                  }}
-                />
-              ) : (
-                <span className="text-lg font-bold text-gray-700">{company.name.charAt(0)}</span>
+    return (
+      <Card key={`${company.id}-${company.round}`} className={`transition-all ${getCardClass(s)}`}>
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start space-x-3 flex-1">
+              <div className="h-12 w-12 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                {company.logo ? (
+                  <img src={company.logo} alt={company.name} className="h-8 w-8 object-contain"
+                    onError={(e) => {
+                      const t = e.currentTarget; t.style.display = "none";
+                      const span = document.createElement("span");
+                      span.className = "text-lg font-bold text-gray-700";
+                      span.textContent = company.name.charAt(0);
+                      t.parentElement?.appendChild(span);
+                    }} />
+                ) : <span className="text-lg font-bold text-gray-700">{company.name.charAt(0)}</span>}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <CardTitle className="text-xl text-gray-900">{company.name}</CardTitle>
+                  <Badge variant="outline" className="text-xs">{company.round}</Badge>
+                  {!company.isWalkin && <Badge variant="outline" className="text-xs">Priority {company.priority}</Badge>}
+                  {getStatusBadge(s)}
+                </div>
+                {company.role && <p className="text-sm text-gray-600 mb-1">{company.role}</p>}
+              </div>
+            </div>
+            {/* Header Action Button */}
+            <div className="shrink-0 flex flex-col items-end gap-2">
+              {CAN_JOIN.includes(s) && (
+                <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white min-w-[110px]"
+                  onClick={() => handleJoinQueue(company)} disabled={busy}>
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogIn className="h-4 w-4 mr-1" />Join Queue</>}
+                </Button>
+              )}
+              {s === "pending" && (
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center text-sm font-medium text-yellow-700 bg-yellow-50 border border-yellow-300 rounded-md h-9 px-3">
+                    <Clock3 className="h-4 w-4 mr-1" />Requested
+                  </div>
+                  <Button size="sm" variant="outline" className="text-red-600 border-red-300 hover:bg-red-50 h-9 px-3"
+                    onClick={() => handleLeaveQueue(company)} disabled={busy}>
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4 mr-1" />}
+                    Cancel
+                  </Button>
+                </div>
+              )}
+              {(s === "in_queue" || s === "in-queue") && (
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col items-center bg-blue-50 border border-blue-200 rounded-md px-3 py-1 mr-2">
+                    <span className="text-[10px] uppercase font-bold text-blue-600 tracking-wider">Position</span>
+                    <span className="text-lg font-black text-blue-900 leading-none mt-0.5">
+                      {company.queuePosition ? `#${company.queuePosition}` : "—"}
+                    </span>
+                  </div>
+                  <Button size="sm" variant="outline" className="text-red-600 border-red-300 hover:bg-red-50 min-w-[110px] h-10"
+                    onClick={() => handleLeaveQueue(company)} disabled={busy}>
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogOut className="h-4 w-4 mr-1" />Exit Queue</>}
+                  </Button>
+                </div>
+              )}
+              {s === "in_interview" && (
+                <div className="flex items-center text-sm font-medium text-orange-700 bg-orange-50 border border-orange-300 rounded-md h-9 px-3">
+                  <Mic className="h-4 w-4 mr-1" />In Interview (Locked)
+                </div>
               )}
             </div>
-            <div className="flex-1 min-w-0">
-              <CardTitle className="text-xl text-gray-900 mb-2">{company.name}</CardTitle>
-              {company.role && <p className="text-sm text-gray-600 mb-1">{company.role}</p>}
-              <div className="flex items-center gap-2 flex-wrap">
-                <Badge variant="outline" className="text-xs">Round {company.round}</Badge>
-                {!company.isWalkin && (
-                  <Badge variant="outline" className="text-xs">Priority {company.priority}</Badge>
-                )}
-              </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between text-sm text-gray-600 w-full">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-gray-400 shrink-0" /> {company.venue}
+            </div>
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-gray-400 shrink-0" /> {company.day} — {company.slot.charAt(0).toUpperCase() + company.slot.slice(1)}
             </div>
           </div>
-          <div className="flex flex-col items-end space-y-2">
-            {company.status === "completed" && (
-              <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle className="h-3 w-3 mr-1" />Completed</Badge>
-            )}
-            {company.status === "offer_given" && (
-              <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">🎉 Offer Given</Badge>
-            )}
-            {company.status === "rejected" && (
-              <Badge className="bg-red-100 text-red-800 border-red-200">Rejected</Badge>
-            )}
-            {(company.status === "in-queue" || company.status === "in_queue" as any) && (
-              <Badge className="bg-blue-100 text-blue-800 border-blue-200"><Clock className="h-3 w-3 mr-1" />In Queue</Badge>
-            )}
-            {company.status === "upcoming" && (
-              <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200"><AlertCircle className="h-3 w-3 mr-1" />Upcoming</Badge>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex items-center text-sm text-gray-600">
-          <MapPin className="h-4 w-4 mr-2 text-gray-400" /> Venue: {company.venue}
-        </div>
-        <div className="flex items-center text-sm text-gray-600">
-          <Clock className="h-4 w-4 mr-2 text-gray-400" /> {company.day} — {company.slot}
-        </div>
 
-        {/* Queue Counter — always visible */}
-        <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center text-sm">
-              <Users className="h-4 w-4 mr-2 text-gray-600" />
-              <span className="text-gray-700">Current Queue Count:</span>
-            </div>
-            <span className="font-semibold text-gray-700">{company.totalInQueue ?? 0} students</span>
-          </div>
-        </div>
-
-        {/* Queue Position — only for card where student IS in the queue */}
-        {company.isInQueue && company.queuePosition && (
-          <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+          <div className="bg-gray-50 rounded-lg p-3 border border-gray-200 mt-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center text-sm">
-                <Users className="h-4 w-4 mr-2 text-blue-600" />
-                <span className="text-gray-700">Your Position in Queue:</span>
+                <Users className="h-4 w-4 mr-2 text-gray-600" />
+                <span className="text-gray-700">Current Queue Count:</span>
               </div>
-              <span className="font-semibold text-blue-700">
-                {company.queuePosition}{company.totalInQueue ? ` of ${company.totalInQueue}` : ""}
-              </span>
+              <span className="font-semibold text-gray-700">{company.totalInQueue ?? 0} students</span>
             </div>
           </div>
-        )}
+        </CardContent>
+      </Card>
+    );
+  };
 
-        {/* Queue Action Buttons */}
-        <div className="flex gap-2 pt-2">
-          {company.isInQueue ? (
-            <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={() => handleLeaveQueue(company.id)}>
-              <Users className="h-4 w-4 mr-2" /> Exit Queue
-            </Button>
-          ) : (
-            <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={() => company.isWalkin ? handleJoinWalkin(company.id) : handleJoinQueue(company.id)}>
-              <Users className="h-4 w-4 mr-2" /> Join Queue
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
+  const currentDay = companies.length > 0 ? [...new Set(companies.map((c) => c.day))][0] : "Today";
+  const sortedCompanies = [...companies].sort((a, b) => a.priority - b.priority);
+  const filteredCompanies = sortedCompanies.filter((c) => (
+    (c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.role.toLowerCase().includes(searchQuery.toLowerCase())) &&
+    (selectedRound === "all" || c.round === selectedRound)
+  ));
+  const uniqueRounds = [...new Set([...companies, ...walkinCompanies].map((c) => c.round))].filter(Boolean).sort((a, b) => a.localeCompare(b));
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-gray-400 gap-2">
+        <Loader2 className="h-6 w-6 animate-spin" /> Loading your companies…
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -306,65 +346,71 @@ export function StudentHomePage() {
         <CardContent className="pt-6">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
               <Input placeholder="Search by company name or role…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
             </div>
-            <Select value={selectedSlot} onValueChange={setSelectedSlot}>
-              <SelectTrigger className="w-full md:w-48">
-                <SelectValue placeholder="Select Slot" />
-              </SelectTrigger>
+            <Select value={selectedRound} onValueChange={setSelectedRound}>
+              <SelectTrigger className="w-full md:w-48"><SelectValue placeholder="Select Round" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Slots</SelectItem>
-                {uniqueSlots.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                <SelectItem value="all">All Rounds</SelectItem>
+                {uniqueRounds.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
         </CardContent>
       </Card>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-20 text-gray-400 gap-2">
-          <Loader2 className="h-6 w-6 animate-spin" /> Loading your companies…
+      <div>
+        <div className="grid gap-6 md:grid-cols-2">
+          {filteredCompanies.map(renderCompanyCard)}
         </div>
-      ) : (
-        <>
-          <div>
-            <div className="grid gap-6 md:grid-cols-2">
-              {filteredCompanies.map(renderCompanyCard)}
-            </div>
-            {filteredCompanies.length === 0 && (
-              <Card className="bg-gray-50">
-                <CardContent className="py-12 text-center">
-                  <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                  <p className="text-gray-600">
-                    {companies.length === 0
-                      ? "You have not been shortlisted for any companies yet."
-                      : "No companies found for the selected filters."}
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+        {filteredCompanies.length === 0 && (
+          <Card className="bg-gray-50">
+            <CardContent className="py-12 text-center">
+              <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-600">No companies found for the selected filters.</p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
-          {/* Walk-in Companies */}
-          <div ref={walkinRef} className="scroll-mt-6">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4 flex items-center">
-              <Building2 className="h-6 w-6 mr-2 text-green-600" />
-              Walk-in Companies
-              <Badge className="ml-3 bg-green-100 text-green-800">Open for All</Badge>
-            </h2>
-            {walkinCompanies.length === 0 ? (
-              <Card className="bg-gray-50">
-                <CardContent className="py-8 text-center text-gray-500">No walk-in companies available right now.</CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-6 md:grid-cols-2">
-                {walkinCompanies.map(renderCompanyCard)}
-              </div>
-            )}
+      <div ref={walkinRef} className="scroll-mt-6">
+        <h2 className="text-2xl font-semibold text-gray-900 mb-4 flex items-center">
+          <Building2 className="h-6 w-6 mr-2 text-green-600" />
+          Walk-in Companies
+          <Badge className="ml-3 bg-green-100 text-green-800">Open for All</Badge>
+        </h2>
+        {walkinCompanies.length === 0 ? (
+          <Card className="bg-gray-50">
+            <CardContent className="py-8 text-center text-gray-500">No walk-in companies available right now.</CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2">
+            {walkinCompanies.map(renderCompanyCard)}
           </div>
-        </>
-      )}
+        )}
+      </div>
+
+      <Dialog open={!!switchModal} onOpenChange={() => setSwitchModal(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Switch Your Queue Request?</DialogTitle>
+            <DialogDescription className="text-base leading-relaxed pt-2">
+              You already have an active request for{" "}
+              <strong className="text-gray-900">{switchModal?.fromCompanyName} ({switchModal?.fromRound})</strong>.
+              <br /><br />
+              Joining <strong className="text-gray-900">{switchModal?.toCompanyName} ({switchModal?.toRound})</strong> will
+              cancel your previous request. Continue?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setSwitchModal(null)}>Keep Current</Button>
+            <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={handleConfirmSwitch} disabled={actionLoading !== null}>
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Yes, Switch
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -6,10 +6,12 @@ const ROLES = {
 
 const STUDENT_STATUS = {
   NOT_JOINED: "not_joined",
+  PENDING: "pending",
   IN_QUEUE: "in_queue",
   IN_INTERVIEW: "in_interview",
   COMPLETED: "completed",
   REJECTED: "rejected",
+  EXITED: "exited",
   ON_HOLD: "on_hold",
   OFFER_GIVEN: "offer_given",
 };

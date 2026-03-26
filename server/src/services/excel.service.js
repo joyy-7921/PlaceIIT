@@ -185,6 +185,12 @@ const processStudentExcel = async (uploadId, filePath) => {
         continue;
       }
 
+      // Validate 10-digit phone number
+      if (!/^\d{10}$/.test(String(phone).trim())) {
+        problemList.push(`Row ${i + 2}: Invalid phone number (must be 10 digits): ${phone}`);
+        continue;
+      }
+
       const instituteId = roll;
       const exist = await User.findOne({ $or: [{ instituteId }, { email }] });
       if (exist) {

@@ -26,6 +26,7 @@ export function APCHomeRoute() {
     }, []);
 
     const handleNavigate = (page: string) => {
+        window.scrollTo(0, 0);
         switch (page) {
             case "student-search":
                 navigate("/apc/students");
@@ -38,6 +39,12 @@ export function APCHomeRoute() {
                 break;
             case "profile":
                 navigate("/apc/profile");
+                break;
+            case "queries":
+                navigate("/apc/queries");
+                break;
+            case "manage-apcs":
+                navigate("/apc/apcs");
                 break;
             default:
                 navigate("/apc");

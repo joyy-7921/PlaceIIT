@@ -44,6 +44,10 @@ export function APCProfilePage({ userName, userId }: APCProfilePageProps) {
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const handleSaveProfile = () => {
     toast.success("Profile updated successfully!");
     setIsEditingProfile(false);

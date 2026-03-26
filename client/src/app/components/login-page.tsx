@@ -4,9 +4,8 @@ import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
-import { GraduationCap, UserCog, ShieldCheck, CheckCircle, X, AlertCircle, Loader2 } from "lucide-react";
+import { GraduationCap, UserCog, ShieldCheck, AlertCircle, Loader2 } from "lucide-react";
 import { ForgotPassword } from "@/app/components/forgot-password";
-import { StudentRegistration } from "@/app/components/student-registration";
 
 type UserRole = "student" | "coco" | "apc";
 
@@ -21,8 +20,6 @@ export function LoginPage({ onLogin, error, loading }: LoginPageProps) {
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [showStudentRegistration, setShowStudentRegistration] = useState(false);
-  const [registrationSuccess, setRegistrationSuccess] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,23 +65,6 @@ export function LoginPage({ onLogin, error, loading }: LoginPageProps) {
     );
   }
 
-  // Show student registration screen if requested
-  if (showStudentRegistration) {
-    return (
-      <StudentRegistration
-        onBack={() => {
-          setShowStudentRegistration(false);
-        }}
-        onRegistrationComplete={() => {
-          setShowStudentRegistration(false);
-          setSelectedRole(null);
-          setUserId("");
-          setPassword("");
-          setRegistrationSuccess(true);
-        }}
-      />
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-yellow-50 flex items-center justify-center p-6">
@@ -98,25 +78,6 @@ export function LoginPage({ onLogin, error, loading }: LoginPageProps) {
           <p className="text-gray-600 text-lg">Campus Placement Management System</p>
         </div>
 
-        {/* Registration Success Alert */}
-        {registrationSuccess && (
-          <Alert className="max-w-md mx-auto mb-6 bg-green-50 border-green-200">
-            <CheckCircle className="h-4 w-4 text-green-600" />
-            <AlertDescription className="ml-2 flex items-center justify-between">
-              <span className="text-green-800">
-                Registration successful! You can now login with your credentials.
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-auto p-0 hover:bg-transparent"
-                onClick={() => setRegistrationSuccess(false)}
-              >
-                <X className="h-4 w-4 text-green-800" />
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
 
         {!selectedRole ? (
           /* Role Selection */
@@ -242,17 +203,6 @@ export function LoginPage({ onLogin, error, loading }: LoginPageProps) {
                     Forgot Password?
                   </Button>
                 </div>
-                {selectedRole === "student" && (
-                  <div className="text-center mt-2">
-                    <Button
-                      variant="link"
-                      size="sm"
-                      onClick={() => setShowStudentRegistration(true)}
-                    >
-                      Register as a Student
-                    </Button>
-                  </div>
-                )}
               </form>
             </CardContent>
           </Card>

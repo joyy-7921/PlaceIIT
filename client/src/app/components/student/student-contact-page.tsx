@@ -143,7 +143,7 @@ export function StudentContactPage() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <div>
-                        <p className="text-sm font-medium text-gray-700 mb-1">Your Query:</p>
+                        <p className="text-sm font-medium text-gray-700 mb-1">Your query:</p>
                         <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                           {query.message}
                         </p>
@@ -293,7 +293,7 @@ export function StudentContactPage() {
                   <Label htmlFor="message">Message</Label>
                   <Textarea
                     id="message"
-                    placeholder="Describe your query in detail..."
+                    placeholder="Describe your query in detail…"
                     value={formData.message}
                     onChange={(e) =>
                       setFormData({ ...formData, message: e.target.value })

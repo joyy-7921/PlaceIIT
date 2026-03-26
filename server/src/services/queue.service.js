@@ -5,129 +5,291 @@ const { STUDENT_STATUS, SOCKET_EVENTS } = require("../utils/constants");
 const { getIO } = require("../config/socket");
 const InterviewRound = require("../models/InterviewRound.model");
 
-const joinQueue = async (studentId, companyId, isWalkIn = false) => {
+// Statuses that mean a student is "actively" occupying a slot
+const ACTIVE_STATUSES = [STUDENT_STATUS.PENDING, STUDENT_STATUS.IN_QUEUE, STUDENT_STATUS.IN_INTERVIEW];
+const TERMINAL_STATUSES = [STUDENT_STATUS.COMPLETED, STUDENT_STATUS.REJECTED, STUDENT_STATUS.EXITED, STUDENT_STATUS.OFFER_GIVEN];
+
+/* ─────────────────────────────────────────────────────────
+   Helper: emit without crashing
+───────────────────────────────────────────────────────── */
+function safeEmit(...args) {
+  try { getIO().emit(...args); } catch (_) { }
+}
+function safeEmitTo(room, event, data) {
+  try { getIO().to(room).emit(event, data); } catch (_) { }
+}
+
+/* ─────────────────────────────────────────────────────────
+   hasActiveQueue — returns the student's current active entry
+   (pending or in_queue or in_interview) across ALL companies
+─────────────────────────────────────────────────────────── */
+const hasActiveQueue = async (studentId) => {
+  return Queue.findOne({
+    studentId,
+    status: { $in: ACTIVE_STATUSES },
+  }).populate("companyId", "name");
+};
+
+/* ─────────────────────────────────────────────────────────
+   joinQueue — creates a PENDING entry
+   Throws a 409-style error with conflictCompanyId if already active elsewhere
+─────────────────────────────────────────────────────────── */
+const joinQueue = async (studentId, companyId, round = "Round 1", isWalkIn = false) => {
   const company = await Company.findById(companyId);
   if (!company) throw new Error("Company not found");
 
-  // Walk-in check
   if (isWalkIn && !company.isWalkInEnabled)
     throw new Error("Walk-in is not enabled for this company");
 
-  // Check if shortlisted (skip for walk-in)
   if (!isWalkIn) {
     const student = await Student.findById(studentId);
-    if (!student.shortlistedCompanies.includes(companyId))
+    if (!student.shortlistedCompanies.map(String).includes(String(companyId)))
       throw new Error("Student is not shortlisted for this company");
   }
 
-  // If student already has a stale entry for THIS company (completed/rejected), remove it
-  const existing = await Queue.findOne({ companyId, studentId });
+  // Check existing entry for THIS company and THIS round
+  const existing = await Queue.findOne({ companyId, studentId, round });
   if (existing) {
-    if ([STUDENT_STATUS.COMPLETED, STUDENT_STATUS.REJECTED].includes(existing.status)) {
+    if (ACTIVE_STATUSES.includes(existing.status)) {
+      throw new Error("You already have an active request for this round");
+    }
+    // Terminal entry exists — remove so we can create fresh pending
+    if (TERMINAL_STATUSES.includes(existing.status)) {
       await Queue.findByIdAndDelete(existing._id);
-    } else if (existing.status === STUDENT_STATUS.IN_QUEUE || existing.status === STUDENT_STATUS.IN_INTERVIEW) {
-      throw new Error("You are already in this company's queue");
     }
   }
 
-  // AUTO-SWITCH: Remove from any other active queue
-  const activeEntries = await Queue.find({
+  // Check if student already active in another company → conflict
+  const activeElsewhere = await Queue.findOne({
     studentId,
-    status: { $in: [STUDENT_STATUS.IN_QUEUE, STUDENT_STATUS.IN_INTERVIEW] },
-  });
+    companyId: { $ne: companyId },
+    status: { $in: ACTIVE_STATUSES },
+  }).populate("companyId", "name");
 
-  for (const activeEntry of activeEntries) {
-    const oldCompanyId = activeEntry.companyId;
-    await Queue.findByIdAndDelete(activeEntry._id);
-    try {
-      getIO().to(`company:${oldCompanyId}`).emit(SOCKET_EVENTS.QUEUE_UPDATED, {
-        companyId: oldCompanyId, action: "left", studentId,
-      });
-      const st = await Student.findById(studentId);
-      if (st) {
-        getIO().to(`user:${st.userId}`).emit(SOCKET_EVENTS.STATUS_UPDATED, {
-          companyId: oldCompanyId, status: "not_joined",
-        });
-      }
-    } catch (_) {}
+  if (activeElsewhere) {
+    if (activeElsewhere.status === STUDENT_STATUS.IN_INTERVIEW) {
+      throw new Error("You are currently in an interview. Actions are disabled.");
+    }
+    const err = new Error("You already have an active request for another company or round. Please leave that queue first, or confirm to switch.");
+    err.code = "QUEUE_CONFLICT";
+    err.conflictCompanyId = String(activeElsewhere.companyId._id);
+    err.conflictCompanyName = activeElsewhere.companyId.name;
+    err.conflictRound = activeElsewhere.round;
+    throw err;
   }
-
-  // Resolve active Round
-  let roundId = null;
-  const currentRoundNum = company.currentRound || 1;
-  const activeRound = await InterviewRound.findOne({ companyId, roundNumber: currentRoundNum });
-  if (activeRound) {
-     roundId = activeRound._id;
-  }
-
-  // Get next position scoped to this round
-  const lastEntry = await Queue.findOne({ companyId, roundId, status: { $in: [STUDENT_STATUS.IN_QUEUE, STUDENT_STATUS.IN_INTERVIEW] } })
-    .sort({ position: -1 });
-  const position = (lastEntry?.position || 0) + 1;
 
   const entry = await Queue.create({
     companyId,
     studentId,
-    roundId,
-    status: STUDENT_STATUS.IN_QUEUE,
-    position,
+    round,
+    status: STUDENT_STATUS.PENDING,
     isWalkIn,
     joinedAt: new Date(),
   });
 
-  // Emit real-time update
-  try {
-    getIO().to(`company:${companyId}`).emit(SOCKET_EVENTS.QUEUE_UPDATED, {
-      companyId,
-      action: "joined",
-      entry,
-    });
-  } catch (_) {}
+  // Notify the company room so COCO sees the request immediately
+  const studentDoc = await Student.findById(studentId);
+  safeEmitTo(`company:${companyId}`, SOCKET_EVENTS.QUEUE_UPDATED, {
+    companyId,
+    action: "pending_request",
+    entry,
+    studentName: studentDoc?.name ?? "A student",
+  });
 
   return entry;
 };
 
-const leaveQueue = async (studentId, companyId) => {
-  const entry = await Queue.findOne({ companyId, studentId });
-  if (!entry) throw new Error("Not in queue for this company");
+/* ─────────────────────────────────────────────────────────
+   switchAndJoin — exit active entry, then create new PENDING
+─────────────────────────────────────────────────────────── */
+const switchAndJoin = async (studentId, fromCompanyId, fromRound, toCompanyId, toRound, isWalkIn = false) => {
+  // Soft-exit the existing active entry
+  const existing = await Queue.findOne({
+    studentId,
+    companyId: fromCompanyId,
+    round: fromRound,
+    status: { $in: ACTIVE_STATUSES },
+  });
+  if (existing) {
+    if (existing.status === STUDENT_STATUS.IN_INTERVIEW) {
+      throw new Error("Cannot switch queues while in an active interview. Actions are disabled.");
+    }
+    existing.status = STUDENT_STATUS.EXITED;
+    existing.completedAt = new Date();
+    await existing.save();
 
-  await Queue.findByIdAndDelete(entry._id);
-
-  try {
-    getIO().to(`company:${companyId}`).emit(SOCKET_EVENTS.QUEUE_UPDATED, {
-      companyId, action: "left", studentId,
+    safeEmitTo(`company:${fromCompanyId}`, SOCKET_EVENTS.QUEUE_UPDATED, {
+      companyId: fromCompanyId, action: "exited", studentId,
     });
-  } catch (_) {}
+
+    const st = await Student.findById(studentId);
+    if (st) {
+      safeEmitTo(`user:${st.userId}`, SOCKET_EVENTS.STATUS_UPDATED, {
+        companyId: fromCompanyId, status: STUDENT_STATUS.EXITED,
+      });
+    }
+  }
+
+  // Now join the new company as pending (conflict check bypassed since we just exited)
+  const company = await Company.findById(toCompanyId);
+  if (!company) throw new Error("Company not found");
+
+  if (isWalkIn && !company.isWalkInEnabled)
+    throw new Error("Walk-in is not enabled for this company");
+
+  if (!isWalkIn) {
+    const student = await Student.findById(studentId);
+    if (!student.shortlistedCompanies.map(String).includes(String(toCompanyId)))
+      throw new Error("Student is not shortlisted for this company");
+  }
+
+  // Remove terminal entries for toCompanyId + toRound
+  await Queue.deleteMany({ studentId, companyId: toCompanyId, round: toRound, status: { $in: TERMINAL_STATUSES } });
+
+  const entry = await Queue.create({
+    companyId: toCompanyId,
+    studentId,
+    round: toRound,
+    status: STUDENT_STATUS.PENDING,
+    isWalkIn,
+    joinedAt: new Date(),
+  });
+
+  safeEmitTo(`company:${toCompanyId}`, SOCKET_EVENTS.QUEUE_UPDATED, {
+    companyId: toCompanyId, action: "pending", entry,
+  });
+
+  return entry;
+};
+
+/* ─────────────────────────────────────────────────────────
+   leaveQueue — soft-delete (EXITED), does NOT delete record
+─────────────────────────────────────────────────────────── */
+const leaveQueue = async (studentId, companyId, round = "Round 1") => {
+  const entry = await Queue.findOne({
+    companyId,
+    studentId,
+    round,
+    status: { $in: ACTIVE_STATUSES },
+  });
+  if (!entry) throw new Error("No active queue entry found for this company");
+
+  if (entry.status === STUDENT_STATUS.IN_INTERVIEW) {
+    throw new Error("Cannot exit queue while in an active interview. Actions are disabled.");
+  }
+
+  entry.status = STUDENT_STATUS.EXITED;
+  entry.completedAt = new Date();
+  await entry.save();
+
+  safeEmitTo(`company:${companyId}`, SOCKET_EVENTS.QUEUE_UPDATED, {
+    companyId, action: "exited", studentId,
+  });
 
   return { message: "Left queue successfully" };
 };
 
-const updateStatus = async (studentId, companyId, status, roundId = null, panelId = null) => {
-  const entry = await Queue.findOne({ companyId, studentId }).populate("studentId");
+/* ─────────────────────────────────────────────────────────
+   acceptQueueRequest — COCO accepts a PENDING entry → IN_QUEUE
+─────────────────────────────────────────────────────────── */
+const acceptQueueRequest = async (studentId, companyId, round = "Round 1") => {
+  const entry = await Queue.findOne({
+    companyId,
+    studentId,
+    round,
+    status: STUDENT_STATUS.PENDING,
+  }).populate("studentId");
+  if (!entry) throw new Error("No pending request found for this student");
+
+  // Resolve active Round
+  const company = await Company.findById(companyId);
+  const currentRoundNum = company?.currentRound || 1;
+  const activeRound = await InterviewRound.findOne({ companyId, roundNumber: currentRoundNum });
+  if (activeRound) entry.roundId = activeRound._id;
+
+  // Assign position
+  const lastEntry = await Queue.findOne({
+    companyId,
+    roundId: entry.roundId,
+    status: { $in: [STUDENT_STATUS.IN_QUEUE, STUDENT_STATUS.IN_INTERVIEW] },
+  }).sort({ position: -1 });
+  entry.position = (lastEntry?.position || 0) + 1;
+  entry.status = STUDENT_STATUS.IN_QUEUE;
+  await entry.save();
+
+  const studentDoc = await Student.findById(studentId);
+  safeEmitTo(`company:${companyId}`, SOCKET_EVENTS.QUEUE_UPDATED, {
+    companyId, action: "accepted", entry,
+  });
+  if (studentDoc) {
+    safeEmitTo(`user:${studentDoc.userId}`, SOCKET_EVENTS.STATUS_UPDATED, {
+      companyId, status: STUDENT_STATUS.IN_QUEUE,
+    });
+  }
+
+  return entry;
+};
+
+/* ─────────────────────────────────────────────────────────
+   rejectQueueRequest — COCO rejects a PENDING entry → REJECTED
+─────────────────────────────────────────────────────────── */
+const rejectQueueRequest = async (studentId, companyId, round = "Round 1") => {
+  const entry = await Queue.findOne({
+    companyId,
+    studentId,
+    round,
+    status: STUDENT_STATUS.PENDING,
+  });
+  if (!entry) throw new Error("No pending request found for this student");
+
+  entry.status = STUDENT_STATUS.REJECTED;
+  entry.completedAt = new Date();
+  await entry.save();
+
+  const studentDoc = await Student.findById(studentId);
+  safeEmitTo(`company:${companyId}`, SOCKET_EVENTS.QUEUE_UPDATED, {
+    companyId, action: "rejected", studentId,
+  });
+  if (studentDoc) {
+    safeEmitTo(`user:${studentDoc.userId}`, SOCKET_EVENTS.STATUS_UPDATED, {
+      companyId, status: STUDENT_STATUS.REJECTED,
+    });
+  }
+
+  return entry;
+};
+
+/* ─────────────────────────────────────────────────────────
+   updateStatus — generic status update (COCO panel actions etc.)
+─────────────────────────────────────────────────────────── */
+const updateStatus = async (studentId, companyId, status, roundId = null, panelId = null, round = "Round 1") => {
+  const entry = await Queue.findOne({ companyId, studentId, round }).populate("studentId");
   if (!entry) throw new Error("Queue entry not found");
 
   entry.status = status;
   if (roundId) entry.roundId = roundId;
   if (panelId) entry.panelId = panelId;
   if (status === STUDENT_STATUS.IN_INTERVIEW) entry.interviewStartedAt = new Date();
-  if ([STUDENT_STATUS.COMPLETED, STUDENT_STATUS.REJECTED].includes(status))
+  if ([STUDENT_STATUS.COMPLETED, STUDENT_STATUS.REJECTED, STUDENT_STATUS.EXITED].includes(status))
     entry.completedAt = new Date();
 
   await entry.save();
 
-  try {
-    getIO().to(`company:${companyId}`).emit(SOCKET_EVENTS.STATUS_UPDATED, {
-      companyId, studentId, status,
-    });
-    // Notify the student personally - use userId for consistency with client room name
-    getIO().to(`user:${entry.studentId.userId}`).emit(SOCKET_EVENTS.STATUS_UPDATED, {
+  safeEmitTo(`company:${companyId}`, SOCKET_EVENTS.STATUS_UPDATED, {
+    companyId, studentId, status,
+  });
+  if (entry.studentId?.userId) {
+    safeEmitTo(`user:${entry.studentId.userId}`, SOCKET_EVENTS.STATUS_UPDATED, {
       companyId, status,
     });
-  } catch (_) {}
+  }
 
   return entry;
 };
 
+/* ─────────────────────────────────────────────────────────
+   getQueue — full queue for a company (incl. pending)
+─────────────────────────────────────────────────────────── */
 const getQueue = async (companyId) => {
   return Queue.find({ companyId })
     .populate("studentId", "name rollNumber contact")
@@ -136,4 +298,28 @@ const getQueue = async (companyId) => {
     .sort({ position: 1 });
 };
 
-module.exports = { joinQueue, leaveQueue, updateStatus, getQueue };
+/* ─────────────────────────────────────────────────────────
+   getPendingRequests — pending entries for a company
+─────────────────────────────────────────────────────────── */
+const getPendingRequests = async (companyId, round = "Round 1") => {
+  return Queue.find({ companyId, round, status: STUDENT_STATUS.PENDING })
+    .populate({
+      path: "studentId",
+      populate: { path: "userId", select: "email" },
+    })
+    .sort({ joinedAt: 1 });
+};
+
+module.exports = {
+  joinQueue,
+  switchAndJoin,
+  leaveQueue,
+  updateStatus,
+  getQueue,
+  getPendingRequests,
+  acceptQueueRequest,
+  rejectQueueRequest,
+  hasActiveQueue,
+  ACTIVE_STATUSES,
+  TERMINAL_STATUSES,
+};

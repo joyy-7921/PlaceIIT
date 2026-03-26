@@ -1,6 +1,6 @@
 /**
  * API Service Layer — centralised HTTP client for the PlaceIIT backend.
- * All requests go through the Vite proxy (/api → http://localhost:5000/api).
+ * All requests go through the Vite proxy (/api → http://localhost:5001/api).
  */
 
 const API_BASE = "/api";
@@ -41,7 +41,10 @@ async function request<T = unknown>(
 
     if (!res.ok) {
         const message = data?.message || `Request failed (${res.status})`;
-        throw new Error(message);
+        const err = new Error(message) as Error & { data: any; status: number };
+        err.data = data;
+        err.status = res.status;
+        throw err;
     }
 
     return data as T;
@@ -122,19 +125,25 @@ export const studentApi = {
     getCompanies: () => request("/student/companies"),
     getMyCompanies: () => request("/student/companies"),
     /** Join the queue for a shortlisted company */
-    joinQueue: (companyId: string) =>
-        request("/student/queue/join", { method: "POST", body: JSON.stringify({ companyId }) }),
+    joinQueue: (companyId: string, round?: string) =>
+        request("/student/queue/join", { method: "POST", body: JSON.stringify({ companyId, round }) }),
     /** Join a walk-in queue */
-    joinWalkInQueue: (companyId: string) =>
-        request("/student/queue/walkin", { method: "POST", body: JSON.stringify({ companyId }) }),
+    joinWalkInQueue: (companyId: string, round?: string) =>
+        request("/student/queue/walkin", { method: "POST", body: JSON.stringify({ companyId, round }) }),
     /** @deprecated use joinWalkInQueue */
-    joinWalkIn: (companyId: string) =>
-        request("/student/queue/walkin", { method: "POST", body: JSON.stringify({ companyId }) }),
-    /** Leave the queue for a company */
-    leaveQueue: (companyId: string) =>
-        request("/student/queue/leave", { method: "POST", body: JSON.stringify({ companyId }) }),
-    getQueuePosition: (companyId: string) =>
-        request(`/student/queue/${companyId}`),
+    joinWalkIn: (companyId: string, round?: string) =>
+        request("/student/queue/walkin", { method: "POST", body: JSON.stringify({ companyId, round }) }),
+    /** Leave the queue for a company (soft-delete: sets status to exited) */
+    leaveQueue: (companyId: string, round?: string) =>
+        request("/student/queue/leave", { method: "POST", body: JSON.stringify({ companyId, round }) }),
+    /** Confirm queue switch: exit fromCompany, join toCompany as pending */
+    confirmSwitch: (fromCompanyId: string, toCompanyId: string, isWalkIn = false, fromRound?: string, toRound?: string) =>
+        request("/student/queue/confirm-switch", {
+            method: "POST",
+            body: JSON.stringify({ fromCompanyId, toCompanyId, isWalkIn, fromRound, toRound }),
+        }),
+    getQueuePosition: (companyId: string, round?: string) =>
+        request(`/student/queue/${companyId}${round ? `?round=${encodeURIComponent(round)}` : ''}`),
     getWalkIns: () => request("/student/walkins"),
     getNotifications: () => request("/student/notifications"),
     markNotifRead: (id: string) =>
@@ -177,7 +186,7 @@ export const cocoApi = {
         request(`/coco/company/${companyId}/walkin`, { method: "PUT", body: JSON.stringify(data) }),
     addStudentToQueue: (data: { companyId: string; studentId: string }) =>
         request("/coco/queue/add", { method: "POST", body: JSON.stringify(data) }),
-    updateStudentStatus: (data: { studentId: string; companyId: string; status: string }) =>
+    updateStudentStatus: (data: { studentId: string; companyId: string; status: string; round?: string }) =>
         request("/coco/queue/status", { method: "PUT", body: JSON.stringify(data) }),
     sendNotification: (data: { studentUserId: string; companyId?: string; message: string }) =>
         request("/coco/notify", { method: "POST", body: JSON.stringify(data) }),
@@ -187,6 +196,8 @@ export const cocoApi = {
         request("/coco/notifications"),
     markNotifRead: (id: string) =>
         request(`/coco/notifications/${id}/read`, { method: "PUT" }),
+    clearAllNotifications: () =>
+        request("/coco/notifications", { method: "DELETE" }),
     addPanel: (data: Record<string, unknown>) =>
         request("/coco/panel", { method: "POST", body: JSON.stringify(data) }),
     updatePanel: (panelId: string, data: Record<string, unknown>) =>
@@ -211,6 +222,18 @@ export const cocoApi = {
     /** Promote students to the next round via Excel upload */
     promoteStudentsExcel: (formData: FormData) =>
         uploadRequest("/coco/round/promote", formData),
+    /** Get pending queue join requests for a company */
+    getPendingRequests: (companyId: string, round?: string) =>
+        request(`/coco/company/${companyId}/pending${round ? `?round=${encodeURIComponent(round)}` : ''}`),
+    /** Accept a pending queue request */
+    acceptStudent: (data: { studentId: string; companyId: string; round?: string }) =>
+        request("/coco/queue/accept", { method: "PUT", body: JSON.stringify(data) }),
+    /** Reject a pending queue request */
+    rejectStudent: (data: { studentId: string; companyId: string; round?: string }) =>
+        request("/coco/queue/reject", { method: "PUT", body: JSON.stringify(data) }),
+    /** Mark student interview as completed */
+    markCompleted: (data: { studentId: string; companyId: string; round?: string }) =>
+        request("/coco/queue/complete", { method: "PUT", body: JSON.stringify(data) }),
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -260,6 +283,9 @@ export const adminApi = {
         request("/admin/auto-allocate-cocos", { method: "POST" }),
     getCocoConflicts: () =>
         request("/admin/coco-conflicts"),
+    getQueries: () => request("/admin/queries"),
+    respondToQuery: (id: string, data: { response: string; status: string }) =>
+        request(`/admin/queries/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 };
 
 /* ═══════════════════════════════════════════════════════════

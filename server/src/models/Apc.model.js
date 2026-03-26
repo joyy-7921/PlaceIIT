@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const coordinatorSchema = new mongoose.Schema(
+const apcSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, unique: true },
     name: { type: String, required: true },
@@ -14,4 +14,4 @@ const coordinatorSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("Coordinator", coordinatorSchema);
+module.exports = mongoose.model("Apc", apcSchema);
