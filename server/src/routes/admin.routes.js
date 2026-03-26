@@ -8,7 +8,8 @@ const {
   uploadStudentExcel,
   uploadCocoRequirementsExcel, getUploadStatus, getStudentCompanies,
   shortlistStudents, getShortlistedStudents, autoAllocateCocos, getCocoConflicts, addApc, getApcs, removeApc, uploadApcExcel,
-  getQueries, respondToQuery
+  getQueries, respondToQuery,
+  getDriveState, updateDriveState, sendBroadcastNotification
 } = require("../controllers/admin.controller");
 const { protect } = require("../middlewares/auth.middleware");
 const { authorize } = require("../middlewares/role.middleware");
@@ -43,5 +44,8 @@ router.post("/auto-allocate-cocos", autoAllocateCocos);
 router.get("/coco-conflicts", getCocoConflicts);
 router.get("/queries", getQueries);
 router.put("/queries/:id", respondToQuery);
+router.get("/drive-state", getDriveState);
+router.put("/drive-state", updateDriveState);
+router.post("/broadcast-notification", sendBroadcastNotification);
 
 module.exports = router;

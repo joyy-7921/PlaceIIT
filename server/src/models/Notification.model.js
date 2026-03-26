@@ -12,7 +12,7 @@ const notificationSchema = new mongoose.Schema(
     isRead: { type: Boolean, default: false },
     type: {
       type: String,
-      enum: ["queue_update", "interview_call", "status_update", "general", "info", "warning", "query_reply", "query_resolved"],
+      enum: ["queue_update", "interview_call", "status_update", "general", "info", "warning", "query_reply", "query_resolved", "urgent", "schedule_update", "announcement"],
       default: "general",
     },
   },

@@ -26,6 +26,8 @@ const resumeUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
+const { getDriveState } = require("../controllers/admin.controller");
+
 router.use(protect, authorize("student"));
 
 router.get("/profile", getProfile);
@@ -44,5 +46,6 @@ router.delete("/notifications", clearAllNotifications);
 router.post("/queries", submitQuery);
 router.get("/queries", getMyQueries);
 router.post("/resume", resumeUpload.single("resume"), uploadResume);
+router.get("/drive-state", getDriveState);
 
 module.exports = router;

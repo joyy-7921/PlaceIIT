@@ -43,6 +43,7 @@ interface Company {
   name: string;
   day: string;
   slot: string;
+  rawSlot: string;
   venue?: string;
   requiredCocosCount?: number;
 }
@@ -100,6 +101,10 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
   const [confirmSlotCountOpen, setConfirmSlotCountOpen] = useState(false);
   const [pendingSlotCount, setPendingSlotCount] = useState<{ companyId: string; newCount: number; oldCount: number } | null>(null);
 
+  // Drive state for filtering
+  const [driveDay, setDriveDay] = useState<number | null>(null);
+  const [driveSlot, setDriveSlot] = useState<string | null>(null);
+
   const normalizeCoco = (raw: any): CoCo => ({
     id: raw._id ?? raw.id ?? "",
     instituteId: raw.instituteId,
@@ -114,6 +119,7 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
     name: raw.name ?? "—",
     day: raw.day != null ? `Day ${raw.day}` : "—",
     slot: formatSlotLabel(raw.slot),
+    rawSlot: raw.slot ?? "",
     venue: raw.venue ?? "Not Assigned",
     requiredCocosCount: raw.requiredCocosCount ?? 1,
   });
@@ -153,6 +159,14 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  // Fetch drive state
+  useEffect(() => {
+    adminApi.getDriveState().then((data: any) => {
+      setDriveDay(data.currentDay ?? null);
+      setDriveSlot(data.currentSlot ?? null);
+    }).catch(() => {});
+  }, []);
 
   const handleAddCoCo = async () => {
     if (!newCoCoName || !newCoCoEmail || !newCoCoRollNumber || !newCoCoPhone) {
@@ -451,6 +465,9 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
   const filteredCompanies = companies.filter((company) => {
     const matchesSearch = company.name.toLowerCase().includes(companySearchQuery.toLowerCase());
     const isUnassigned = !getAssignedCoCoId(company.id);
+    // Filter by active drive state day/slot
+    if (driveDay != null && company.day !== `Day ${driveDay}`) return false;
+    if (driveSlot && company.rawSlot !== driveSlot) return false;
     return showUnassignedOnly ? matchesSearch && isUnassigned : matchesSearch;
   });
 

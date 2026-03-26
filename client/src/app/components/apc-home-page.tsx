@@ -2,6 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
+import { Input } from "@/app/components/ui/input";
+import { Label } from "@/app/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/app/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 import { StatsCard } from "@/app/components/stats-card";
 import {
   Users,
@@ -16,10 +20,13 @@ import {
   User,
   Award,
   Loader2,
+  Send,
+  Settings,
 } from "lucide-react";
 import { adminApi } from "@/app/lib/api";
 import { useSocket } from "@/app/socket-context";
 import { formatSlotLabel } from "@/app/lib/format";
+import { toast } from "sonner";
 
 interface APCHomePageProps {
   userName: string;
@@ -45,6 +52,20 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [loadingSchedule, setLoadingSchedule] = useState(true);
 
+  // ── Drive State ──────────────────────────────────────────────────────────────
+  const [driveDay, setDriveDay] = useState(1);
+  const [driveSlot, setDriveSlot] = useState("morning");
+  const [selectedDay, setSelectedDay] = useState(1);
+  const [selectedSlot, setSelectedSlot] = useState("morning");
+  const [showDriveConfirm, setShowDriveConfirm] = useState(false);
+  const [updatingDrive, setUpdatingDrive] = useState(false);
+
+  // ── Broadcast Notification ───────────────────────────────────────────────────
+  const [notifMessage, setNotifMessage] = useState("");
+  const [notifType, setNotifType] = useState("general");
+  const [notifAudience, setNotifAudience] = useState("everyone");
+  const [sendingNotif, setSendingNotif] = useState(false);
+
   const fetchSchedule = useCallback(async () => {
     setLoadingSchedule(true);
     try {
@@ -66,7 +87,20 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
     }
   }, []);
 
+  const fetchDriveState = useCallback(async () => {
+    try {
+      const data: any = await adminApi.getDriveState();
+      setDriveDay(data.currentDay ?? 1);
+      setDriveSlot(data.currentSlot ?? "morning");
+      setSelectedDay(data.currentDay ?? 1);
+      setSelectedSlot(data.currentSlot ?? "morning");
+    } catch {
+      // defaults already set
+    }
+  }, []);
+
   useEffect(() => { fetchSchedule(); }, [fetchSchedule]);
+  useEffect(() => { fetchDriveState(); }, [fetchDriveState]);
 
   // Live schedule refresh
   useEffect(() => {
@@ -80,14 +114,58 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
     };
   }, [socket, fetchSchedule]);
 
+  // Live drive state sync
+  useEffect(() => {
+    if (!socket) return;
+    const handleDriveUpdate = (data: any) => {
+      setDriveDay(data.currentDay);
+      setDriveSlot(data.currentSlot);
+      setSelectedDay(data.currentDay);
+      setSelectedSlot(data.currentSlot);
+    };
+    socket.on("driveState:updated", handleDriveUpdate);
+    return () => { socket.off("driveState:updated", handleDriveUpdate); };
+  }, [socket]);
 
-
-  const getStatusBadge = (status: string) => {
-    if (status === "ongoing") {
-      return <Badge className="bg-green-100 text-green-700 border-green-200">Ongoing</Badge>;
+  // ── Drive State Update ───────────────────────────────────────────────────────
+  const handleDriveUpdate = async () => {
+    setUpdatingDrive(true);
+    try {
+      await adminApi.updateDriveState({ day: selectedDay, slot: selectedSlot });
+      setDriveDay(selectedDay);
+      setDriveSlot(selectedSlot);
+      toast.success(`Drive updated to Day ${selectedDay}, ${selectedSlot.charAt(0).toUpperCase() + selectedSlot.slice(1)} Slot`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update drive state");
+    } finally {
+      setUpdatingDrive(false);
+      setShowDriveConfirm(false);
     }
-    return <Badge className="bg-blue-100 text-blue-700 border-blue-200">Upcoming</Badge>;
   };
+
+  // ── Broadcast Notification ───────────────────────────────────────────────────
+  const handleSendNotification = async () => {
+    if (!notifMessage.trim()) {
+      toast.error("Please enter a message");
+      return;
+    }
+    setSendingNotif(true);
+    try {
+      const res: any = await adminApi.sendBroadcastNotification({
+        message: notifMessage.trim(),
+        type: notifType,
+        audience: notifAudience,
+      });
+      toast.success(res.message || "Notification sent");
+      setNotifMessage("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send notification");
+    } finally {
+      setSendingNotif(false);
+    }
+  };
+
+  const slotLabel = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
   return (
     <>
@@ -122,7 +200,142 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
         />
       </div>
 
-      {/* Today's Schedule */}
+      {/* ──────── Drive Control + Notifications (SIDE BY SIDE) ──────── */}
+      <div className="grid gap-6 md:grid-cols-2 mb-8">
+        {/* FEATURE 1: APC Control Panel (Day & Slot) */}
+        <Card className="border-indigo-200">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-xl flex items-center gap-2">
+              <Settings className="h-5 w-5 text-indigo-600" />
+              Drive Control Panel
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="mb-6 p-4 bg-indigo-50 rounded-lg flex items-center justify-center gap-3">
+              <span className="inline-flex items-center px-4 py-2 rounded-full bg-indigo-600 text-white font-bold text-sm shadow-sm">
+                Day {driveDay}
+              </span>
+              <span className="inline-flex items-center px-4 py-2 rounded-full bg-indigo-600 text-white font-bold text-sm shadow-sm">
+                {slotLabel(driveSlot)} Slot
+              </span>
+            </div>
+
+            {/* Controls */}
+            <div className="flex flex-col gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Select Day</Label>
+                <Select value={String(selectedDay)} onValueChange={(v) => setSelectedDay(Number(v))}>
+                  <SelectTrigger><SelectValue placeholder="Select Day" /></SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3].map((d) => (
+                      <SelectItem key={d} value={String(d)}>Day {d}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Select Slot</Label>
+                <Select value={selectedSlot} onValueChange={setSelectedSlot}>
+                  <SelectTrigger><SelectValue placeholder="Select Slot" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="morning">Morning</SelectItem>
+                    <SelectItem value="afternoon">Afternoon</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={() => setShowDriveConfirm(true)}
+              >
+                Update
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* FEATURE 2: APC Notification System */}
+        <Card className="border-amber-200">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-xl flex items-center gap-2">
+              <Send className="h-5 w-5 text-amber-600" />
+              Send Notification
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-4">
+            <div>
+              <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Message</Label>
+              <textarea
+                className="w-full rounded-md border border-gray-300 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[80px] resize-y"
+                placeholder="Type your notification message..."
+                value={notifMessage}
+                onChange={(e) => setNotifMessage(e.target.value)}
+                rows={3}
+              />
+            </div>
+            <div className="flex flex-col gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Notification Type</Label>
+                <Select value={notifType} onValueChange={setNotifType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="general">General</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                    <SelectItem value="schedule_update">Schedule Update</SelectItem>
+                    <SelectItem value="announcement">Announcement</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Audience</Label>
+                <Select value={notifAudience} onValueChange={setNotifAudience}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="students">Only Students</SelectItem>
+                    <SelectItem value="cocos">Only CoCos</SelectItem>
+                    <SelectItem value="everyone">Everyone</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={handleSendNotification}
+                disabled={sendingNotif || !notifMessage.trim()}
+              >
+                {sendingNotif && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                <Send className="h-4 w-4 mr-2" />
+                Send Notification
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Drive State Confirmation Modal */}
+      <Dialog open={showDriveConfirm} onOpenChange={setShowDriveConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Drive State Change</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to transition the campus drive to Day {selectedDay}, {slotLabel(selectedSlot)} Slot? This will instantly update the dashboard for all users.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDriveConfirm(false)}>Cancel</Button>
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={handleDriveUpdate}
+              disabled={updatingDrive}
+            >
+              {updatingDrive && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ──────── Today's Schedule (FEATURE 3: Status badge removed) ──────── */}
       <div className="mb-8">
         <Card>
           <CardHeader className="border-b border-gray-100">
@@ -162,7 +375,6 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <h4 className="font-semibold text-gray-900">{interview.company}</h4>
-                        {getStatusBadge(interview.status)}
                       </div>
                       <div className="flex items-center gap-4 text-sm text-gray-600">
                         <div className="flex items-center gap-1">

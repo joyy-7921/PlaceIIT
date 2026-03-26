@@ -63,6 +63,10 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
   const [savingVenue, setSavingVenue] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Drive state (display only — CoCo assignment is separate)
+  const [driveDay, setDriveDay] = useState<number | null>(null);
+  const [driveSlot, setDriveSlot] = useState<string | null>(null);
+
   const [company, setCompany] = useState({
     id: "",
     name: companyName || "",
@@ -224,6 +228,14 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Fetch drive state
+  useEffect(() => {
+    cocoApi.getDriveState().then((data: any) => {
+      setDriveDay(data.currentDay ?? null);
+      setDriveSlot(data.currentSlot ?? null);
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (!socket || !company.id) return;
     socket.emit("join:company", company.id);
@@ -239,6 +251,17 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
       socket.off("round:updated", handleUpdate);
     };
   }, [socket, company.id, fetchData]);
+
+  // Drive state socket sync
+  useEffect(() => {
+    if (!socket) return;
+    const handleDriveUpdate = (data: any) => {
+      setDriveDay(data.currentDay);
+      setDriveSlot(data.currentSlot);
+    };
+    socket.on("driveState:updated", handleDriveUpdate);
+    return () => { socket.off("driveState:updated", handleDriveUpdate); };
+  }, [socket]);
 
   /* ── handlers ── */
   const handleSearchStudents = async () => {
@@ -638,7 +661,19 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
                 )}
               </div>
               <div>
-                <CardTitle className="text-2xl text-gray-900 mb-1">{company.name}</CardTitle>
+                <div className="flex items-center gap-2 mb-1">
+                  <CardTitle className="text-2xl text-gray-900">{company.name}</CardTitle>
+                  {driveDay != null && (
+                    <Badge className="bg-green-100 text-green-700 border border-green-200 text-sm font-medium">
+                      Day {driveDay}
+                    </Badge>
+                  )}
+                  {driveSlot && (
+                    <Badge className="bg-green-100 text-green-700 border border-green-200 text-sm font-medium">
+                      {driveSlot.charAt(0).toUpperCase() + driveSlot.slice(1)} Slot
+                    </Badge>
+                  )}
+                </div>
                 {company.role && <p className="text-gray-600 text-sm mb-1">{company.role}</p>}
                 <div className="flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5 text-green-600" />

@@ -16,7 +16,7 @@ const companyRoutes = require("./routes/company.routes");
 const queueRoutes = require("./routes/queue.routes");
 
 // Init
-connectDB();
+connectDB().then(() => {
 const app = express();
 const server = http.createServer(app);
 const io = initSocket(server);
@@ -45,4 +45,5 @@ app.use(errorHandler);
 
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
+});
 });

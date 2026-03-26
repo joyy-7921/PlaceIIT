@@ -169,6 +169,7 @@ export const studentApi = {
             return data;
         });
     },
+    getDriveState: () => request("/student/drive-state"),
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -236,6 +237,7 @@ export const cocoApi = {
     /** Mark student interview as completed */
     markCompleted: (data: { studentId: string; companyId: string; round?: string }) =>
         request("/coco/queue/complete", { method: "PUT", body: JSON.stringify(data) }),
+    getDriveState: () => request("/coco/drive-state"),
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -296,6 +298,11 @@ export const adminApi = {
         request("/admin/remove-apc", { method: "POST", body: JSON.stringify(data) }),
     uploadApcExcel: (formData: FormData) =>
         uploadRequest("/admin/upload/apcs", formData),
+    getDriveState: () => request("/admin/drive-state"),
+    updateDriveState: (data: { day: number; slot: string }) =>
+        request("/admin/drive-state", { method: "PUT", body: JSON.stringify(data) }),
+    sendBroadcastNotification: (data: { message: string; type: string; audience: string }) =>
+        request("/admin/broadcast-notification", { method: "POST", body: JSON.stringify(data) }),
 };
 
 /* ═══════════════════════════════════════════════════════════

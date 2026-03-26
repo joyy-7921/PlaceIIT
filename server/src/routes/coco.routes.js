@@ -13,7 +13,7 @@ const {
   getPendingRequests, acceptStudent, rejectStudent, markCompleted,
   updateCompanyVenue,
 } = require("../controllers/coco.controller");
-const { getStudentCompanies } = require("../controllers/admin.controller");
+const { getStudentCompanies, getDriveState } = require("../controllers/admin.controller");
 const { protect } = require("../middlewares/auth.middleware");
 const { authorize } = require("../middlewares/role.middleware");
 
@@ -47,5 +47,6 @@ router.post("/round/promote", upload.single("file"), promoteStudentsViaExcel);
 router.get("/students/search", searchAllStudents);
 router.get("/students/:id/companies", getStudentCompanies);
 router.post("/company/add-student", addStudentToCompany);
+router.get("/drive-state", getDriveState);
 
 module.exports = router;

@@ -42,6 +42,7 @@ const SOCKET_EVENTS = {
   NOTIFICATION_SENT: "notification:sent",
   ROUND_UPDATED: "round:updated",
   WALKIN_UPDATED: "walkin:updated",
+  DRIVE_STATE_UPDATED: "driveState:updated",
 };
 
 module.exports = {

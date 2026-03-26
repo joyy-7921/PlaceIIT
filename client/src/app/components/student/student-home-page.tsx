@@ -47,6 +47,10 @@ export function StudentHomePage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const walkinRef = useRef<HTMLDivElement>(null);
 
+  // Drive state
+  const [driveDay, setDriveDay] = useState<number | null>(null);
+  const [driveSlot, setDriveSlot] = useState<string | null>(null);
+
   const [switchModal, setSwitchModal] = useState<{
     fromCompanyId: string;
     fromCompanyName: string;
@@ -107,6 +111,14 @@ export function StudentHomePage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Fetch drive state
+  useEffect(() => {
+    studentApi.getDriveState().then((data: any) => {
+      setDriveDay(data.currentDay ?? null);
+      setDriveSlot(data.currentSlot ?? null);
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (!socket) return;
     const refresh = () => fetchData();
@@ -119,6 +131,17 @@ export function StudentHomePage() {
       socket.off("walkin:updated", refresh);
     };
   }, [socket, fetchData]);
+
+  // Drive state socket sync
+  useEffect(() => {
+    if (!socket) return;
+    const handleDriveUpdate = (data: any) => {
+      setDriveDay(data.currentDay);
+      setDriveSlot(data.currentSlot);
+    };
+    socket.on("driveState:updated", handleDriveUpdate);
+    return () => { socket.off("driveState:updated", handleDriveUpdate); };
+  }, [socket]);
 
   const optimisticUpdate = (companyId: string, round: string, newStatus: string | null) => {
     setCompanies(prev => prev.map(c => (c.id === companyId && c.round === round) ? { ...c, queueStatus: newStatus } : c));
@@ -315,9 +338,17 @@ export function StudentHomePage() {
     );
   };
 
-  const currentDay = companies.length > 0 ? [...new Set(companies.map((c) => c.day))][0] : "Today";
+  const currentDay = driveDay ? `Day ${driveDay}` : (companies.length > 0 ? [...new Set(companies.map((c) => c.day))][0] : "Today");
   const sortedCompanies = [...companies].sort((a, b) => a.priority - b.priority);
-  const filteredCompanies = sortedCompanies.filter((c) => (
+
+  // Filter by active drive state day/slot
+  const activeCompanies = sortedCompanies.filter((c) => {
+    if (driveDay != null && c.day !== `Day ${driveDay}`) return false;
+    if (driveSlot && c.slot !== driveSlot) return false;
+    return true;
+  });
+
+  const filteredCompanies = activeCompanies.filter((c) => (
     (c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.role.toLowerCase().includes(searchQuery.toLowerCase())) &&
     (selectedRound === "all" || c.round === selectedRound)
   ));
@@ -334,8 +365,14 @@ export function StudentHomePage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold text-gray-900 flex items-center">
-          <Building2 className="h-6 w-6 mr-2 text-indigo-600" /> {currentDay}
+        <h2 className="text-2xl font-semibold text-gray-900 flex items-center gap-3">
+          <Building2 className="h-6 w-6 text-indigo-600" />
+          {currentDay}
+          {driveSlot && (
+            <Badge className="bg-indigo-100 text-indigo-700 border border-indigo-200 text-sm font-medium">
+              {driveSlot.charAt(0).toUpperCase() + driveSlot.slice(1)} Slot
+            </Badge>
+          )}
         </h2>
         <Button variant="outline" onClick={scrollToWalkin} className="border-green-600 text-green-600 hover:bg-green-50">
           <Building2 className="h-4 w-4 mr-2" /> Walk-in Companies
@@ -380,15 +417,22 @@ export function StudentHomePage() {
           Walk-in Companies
           <Badge className="ml-3 bg-green-100 text-green-800">Open for All</Badge>
         </h2>
-        {walkinCompanies.length === 0 ? (
+        {(() => {
+          const activeWalkins = walkinCompanies.filter((c) => {
+            if (driveDay != null && c.day !== `Day ${driveDay}`) return false;
+            if (driveSlot && c.slot !== driveSlot) return false;
+            return true;
+          });
+          return activeWalkins.length === 0 ? (
           <Card className="bg-gray-50">
             <CardContent className="py-8 text-center text-gray-500">No walk-in companies available right now.</CardContent>
           </Card>
         ) : (
           <div className="grid gap-6 md:grid-cols-2">
-            {walkinCompanies.map(renderCompanyCard)}
+            {activeWalkins.map(renderCompanyCard)}
           </div>
-        )}
+        );
+        })()}
       </div>
 
       <Dialog open={!!switchModal} onOpenChange={() => setSwitchModal(null)}>

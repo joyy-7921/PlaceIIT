@@ -247,9 +247,15 @@ export function CoCoNotificationsPage() {
 
                   <p className="text-xs text-gray-700 mb-2 line-clamp-3">{notification.message}</p>
 
-                  <div className="flex items-center gap-2 text-[11px] text-gray-500">
-                    <Clock className="h-3 w-3" /> {formatTimestamp(notification.timestamp)}
-                    {!notification.isRead && <span className="w-1.5 h-1.5 rounded-full bg-green-600 ml-auto" />}
+                  <div className="flex items-center justify-between text-[11px] text-gray-500">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-3 w-3" /> {formatTimestamp(notification.timestamp)}
+                    </div>
+                    {!notification.isRead && (
+                      <Button variant="ghost" size="sm" className="h-6 text-[11px] text-green-700 hover:text-green-800 hover:bg-green-100 px-2" onClick={(e) => { e.stopPropagation(); handleMarkRead(notification.id); }}>
+                        Mark as Read
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>

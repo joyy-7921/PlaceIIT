@@ -10,6 +10,9 @@ const { getIO } = require("../config/socket");
 const crypto = require("crypto");
 const { createApc } = require("../services/apc.service");
 const Apc = require("../models/Apc.model");
+const DriveState = require("../models/DriveState.model");
+const Notification = require("../models/Notification.model");
+const { SOCKET_EVENTS } = require("../utils/constants");
 
 const emitStatsUpdate = async () => {
   try {
@@ -835,11 +838,89 @@ const respondToQuery = async (req, res) => {
   }
 };
 
+// @desc    Get current drive state (Day/Slot)
+// @route   GET /api/admin/drive-state
+const getDriveState = async (req, res) => {
+  try {
+    let state = await DriveState.findOne();
+    if (!state) {
+      state = await DriveState.create({ currentDay: 1, currentSlot: "morning" });
+    }
+    res.json(state);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Update drive state (Day/Slot) — broadcasts to all users
+// @route   PUT /api/admin/drive-state
+const updateDriveState = async (req, res) => {
+  try {
+    const { day, slot } = req.body;
+    if (!day || !slot) return res.status(400).json({ message: "Day and Slot are required" });
+
+    let state = await DriveState.findOne();
+    if (!state) {
+      state = await DriveState.create({ currentDay: day, currentSlot: slot });
+    } else {
+      state.currentDay = day;
+      state.currentSlot = slot;
+      await state.save();
+    }
+
+    // Broadcast to ALL connected clients
+    try {
+      const io = getIO();
+      if (io) io.emit(SOCKET_EVENTS.DRIVE_STATE_UPDATED, { currentDay: day, currentSlot: slot });
+    } catch (_) {}
+
+    res.json(state);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Send broadcast notification to students/cocos/everyone
+// @route   POST /api/admin/broadcast-notification
+const sendBroadcastNotification = async (req, res) => {
+  try {
+    const { message, type = "general", audience } = req.body;
+    if (!message) return res.status(400).json({ message: "Message is required" });
+    if (!audience) return res.status(400).json({ message: "Audience is required" });
+
+    // Build role filter based on audience
+    let roleFilter;
+    if (audience === "students") roleFilter = { role: "student" };
+    else if (audience === "cocos") roleFilter = { role: "coco" };
+    else roleFilter = { role: { $in: ["student", "coco"] } }; // everyone
+
+    const users = await User.find({ ...roleFilter, isActive: true }).select("_id");
+
+    const notificationService = require("../services/notification.service");
+    let sentCount = 0;
+    for (const user of users) {
+      await notificationService.sendNotification({
+        recipientId: user._id,
+        senderId: req.user.id,
+        source: "apc",
+        message,
+        type,
+      });
+      sentCount++;
+    }
+
+    res.json({ message: `Notification sent to ${sentCount} user(s)`, sentCount });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getStats, getCompanies, addCompany, updateCompany,
   searchStudents, getStudentCompanies, getCocos, addCoco, addStudent, getApcs, addApc, removeApc,
   assignCoco, removeCoco,
   uploadCompanyExcel, uploadShortlistExcel, uploadCocoExcel, uploadApcExcel, uploadStudentExcel, uploadCocoRequirementsExcel, getUploadStatus,
   shortlistStudents, getShortlistedStudents, autoAllocateCocos, getCocoConflicts,
-  getQueries, respondToQuery
+  getQueries, respondToQuery,
+  getDriveState, updateDriveState, sendBroadcastNotification
 };
