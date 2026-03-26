@@ -67,7 +67,6 @@ function AppRoutes() {
             <Route path="students" element={<APCStudentsRoute />} />
             <Route path="students/:id" element={<APCStudentDetailsRoute />} />
             <Route path="cocos" element={<APCCoCosRoute />} />
-            <Route path="apcs" element={<APCApcsRoute />} />
             <Route path="cocos/:id/schedule" element={<APCCoCoScheduleRoute />} />
             <Route path="companies" element={<APCCompaniesRoute />} />
             <Route path="companies/:id" element={<APCCompanyDetailsRoute />} />

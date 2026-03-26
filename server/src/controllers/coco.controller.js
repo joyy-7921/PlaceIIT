@@ -217,6 +217,7 @@ const assignPanelStudent = async (req, res) => {
 
     res.json(panel);
   } catch (err) {
+    console.error("[assignPanelStudent] Error:", err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -255,6 +256,7 @@ const clearPanel = async (req, res) => {
 
     res.json(panel);
   } catch (err) {
+    console.error("[clearPanel] Error:", err);
     res.status(500).json({ message: err.message });
   }
 };

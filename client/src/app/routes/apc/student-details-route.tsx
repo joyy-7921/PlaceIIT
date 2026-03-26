@@ -19,9 +19,6 @@ export function APCStudentDetailsRoute() {
             email={student.email}
             phone={student.phone}
             emergencyContact={student.emergencyContact}
-            department={student.department}
-            cgpa={student.cgpa}
-            resumeUrl={student.resumeUrl}
             inInterview={student.inInterview}
             interviewWith={student.interviewWith}
             interviewVenue={student.interviewVenue}

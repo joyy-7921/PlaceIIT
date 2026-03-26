@@ -6,12 +6,12 @@ import { formatSlotLabel } from "@/app/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
-import { 
-  ArrowLeft, 
-  Calendar, 
-  Clock, 
-  MapPin, 
-  UserCog, 
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  MapPin,
+  UserCog,
   Users,
   Search,
   Mail,
@@ -124,11 +124,35 @@ export function CompanyDetailsPage({
   const [editableCoCo, setEditableCoCo] = useState(cocoAssigned);
   const [saving, setSaving] = useState(false);
 
-  // Mock CoCo list
-  const availableCocos = ["Arjun Mehta", "Kavya Singh", "Rohan Gupta", "Not Assigned"];
+  // Dynamic CoCo list
+  const [availableCocos, setAvailableCocos] = useState<{ id: string, name: string }[]>([]);
+  const [initialCocoId, setInitialCocoId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCocosList = async () => {
+      try {
+        const data: any = await adminApi.getCocos();
+        const mapped = data.map((c: any) => ({ id: c._id || c.id, name: c.name })).filter((c: any) => c.name);
+        setAvailableCocos(mapped);
+
+        if (cocoAssigned && cocoAssigned !== "Not Assigned") {
+          const match = mapped.find((c: any) => cocoAssigned.includes(c.name));
+          if (match) {
+            setEditableCoCo(match.id);
+            setInitialCocoId(match.id);
+            return;
+          }
+        }
+        setEditableCoCo("Not Assigned");
+      } catch (err) {
+        console.error("Failed to fetch cocos", err);
+      }
+    };
+    fetchCocosList();
+  }, [cocoAssigned]);
 
   const filteredStudents = students.filter(student => {
-    const matchesSearch = 
+    const matchesSearch =
       student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       student.rollNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       student.email.toLowerCase().includes(searchQuery.toLowerCase());
@@ -173,8 +197,8 @@ export function CompanyDetailsPage({
     <div className="space-y-8">
       {/* Header with Back Button */}
       <div className="flex items-center gap-4">
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           onClick={onBack}
           className="flex items-center gap-2"
         >
@@ -201,7 +225,7 @@ export function CompanyDetailsPage({
                 <div className="font-semibold text-gray-900">{day}</div>
               </div>
             </div>
-            
+
             <div className="flex items-start gap-3 bg-indigo-50 p-4 rounded-lg">
               <Clock className="h-5 w-5 text-indigo-600 mt-0.5" />
               <div>
@@ -209,19 +233,21 @@ export function CompanyDetailsPage({
                 <div className="font-semibold text-gray-900">{formatSlotLabel(slot)}</div>
               </div>
             </div>
-            
+
             <div className="flex items-start gap-3 bg-indigo-50 p-4 rounded-lg">
               <UserCog className="h-5 w-5 text-indigo-600 mt-0.5" />
               <div>
                 <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">CoCo Assigned</div>
-                <div className="font-semibold text-gray-900">{editableCoCo}</div>
+                <div className="font-semibold text-gray-900">
+                  {editableCoCo === "Not Assigned" ? "Not Assigned" : availableCocos.find(c => c.id === editableCoCo)?.name || cocoAssigned}
+                </div>
               </div>
             </div>
-            
+
             <div className="flex items-start gap-3 bg-indigo-50 p-4 rounded-lg">
               <MapPin className="h-5 w-5 text-indigo-600 mt-0.5" />
               <div>
-              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Venue</div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Venue</div>
                 <div className="font-semibold text-gray-900">Venue: {editableVenue}</div>
               </div>
             </div>
@@ -259,9 +285,10 @@ export function CompanyDetailsPage({
                   <SelectValue placeholder="Select CoCo" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="Not Assigned">Not Assigned</SelectItem>
                   {availableCocos.map((coco) => (
-                    <SelectItem key={coco} value={coco}>
-                      {coco}
+                    <SelectItem key={coco.id} value={coco.id}>
+                      {coco.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -270,7 +297,7 @@ export function CompanyDetailsPage({
                 Assign or reassign a coordinator to this company
               </p>
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-semibold text-gray-700">Change Venue</label>
               <Input
@@ -292,6 +319,17 @@ export function CompanyDetailsPage({
                 setSaving(true);
                 try {
                   await adminApi.updateCompany(companyId, { name: editableName, venue: editableVenue });
+
+                  if (editableCoCo !== initialCocoId) {
+                    if (initialCocoId && initialCocoId !== "Not Assigned") {
+                      await adminApi.removeCoco({ cocoId: initialCocoId, companyId });
+                    }
+                    if (editableCoCo && editableCoCo !== "Not Assigned") {
+                      await adminApi.assignCoco({ cocoId: editableCoCo, companyId });
+                    }
+                    setInitialCocoId(editableCoCo === "Not Assigned" ? null : editableCoCo);
+                  }
+
                   toast.success("Company updated successfully!");
                 } catch (err: any) {
                   toast.error(err.message ?? "Failed to update company");
@@ -319,7 +357,7 @@ export function CompanyDetailsPage({
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -331,7 +369,7 @@ export function CompanyDetailsPage({
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -343,7 +381,7 @@ export function CompanyDetailsPage({
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -410,11 +448,11 @@ export function CompanyDetailsPage({
         <h2 className="text-xl font-bold text-gray-800 mb-4">Shortlisted Students ({filteredStudents.length})</h2>
         <div className="space-y-3">
           {loading ? (
-             <Card>
-               <CardContent className="py-8 text-center text-gray-500">
-                 Loading students...
-               </CardContent>
-             </Card>
+            <Card>
+              <CardContent className="py-8 text-center text-gray-500">
+                Loading students...
+              </CardContent>
+            </Card>
           ) : filteredStudents.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-gray-500">
@@ -431,7 +469,7 @@ export function CompanyDetailsPage({
                         <div className="font-semibold text-gray-900 text-lg">{student.name}</div>
                         <div className="text-sm text-gray-500 mt-0.5">{student.rollNumber}</div>
                       </div>
-                      
+
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Mail className="h-3.5 w-3.5" />
@@ -442,17 +480,17 @@ export function CompanyDetailsPage({
                           <span>{student.phone}</span>
                         </div>
                       </div>
-                      
+
                       <div>
                         <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Branch</div>
                         <div className="text-sm font-semibold text-gray-900 mt-1">{student.branch}</div>
                       </div>
-                      
+
                       <div>
                         <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">CGPA</div>
                         <div className="text-sm font-semibold text-gray-900 mt-1">{student.cgpa}</div>
                       </div>
-                      
+
                       <div className="flex justify-end">
                         {getStatusBadge(student.status)}
                       </div>

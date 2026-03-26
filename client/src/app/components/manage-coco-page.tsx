@@ -149,6 +149,10 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
       toast.error("Please fill all required fields");
       return;
     }
+    if (!/^\d{10}$/.test(newCoCoPhone)) {
+      toast.error("Phone number must be exactly 10 digits");
+      return;
+    }
     setSaving(true);
     try {
       const res: any = await adminApi.addCoco({
@@ -441,7 +445,15 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone">Phone *</Label>
-                      <Input id="phone" placeholder="Enter 10-digit phone number" value={newCoCoPhone} onChange={(e) => setNewCoCoPhone(e.target.value)} />
+                      <Input
+                        id="phone"
+                        placeholder="Enter 10-digit phone number"
+                        value={newCoCoPhone}
+                        onChange={(e) => setNewCoCoPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        minLength={10}
+                        maxLength={10}
+                        pattern="\d{10}"
+                      />
                     </div>
                     <p className="text-xs text-gray-500 mt-4">Username (cocoX) and random password will be auto-generated and sent via email.</p>
                   </div>

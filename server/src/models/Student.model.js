@@ -17,15 +17,25 @@ const studentSchema = new mongoose.Schema(
     batch: { type: String },
     cgpa: { type: Number },
     contact: { type: String },
-    phone: { type: String, required: true },
+    phone: { 
+      type: String, 
+      required: true,
+      match: [/^\d{10}$/, "Phone number must be exactly 10 digits"]
+    },
     emergencyContact: {
       name: { type: String },
-      phone: { type: String },
+      phone: { 
+        type: String,
+        match: [/^\d{10}$/, "Phone number must be exactly 10 digits"]
+      },
       relation: { type: String },
     },
     friendContact: {
       name: { type: String },
-      phone: { type: String },
+      phone: { 
+        type: String,
+        match: [/^\d{10}$/, "Phone number must be exactly 10 digits"]
+      },
     },
     resume: { type: String }, // URL or path
     profileCompleted: { type: Boolean, default: false },

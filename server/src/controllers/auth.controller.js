@@ -45,8 +45,7 @@ const login = async (req, res) => {
         instituteId: user.instituteId,
         role: user.role,
         email: user.email,
-        mustChangePassword: user.mustChangePassword,
-        isMainAdmin: user.isMainAdmin
+        mustChangePassword: user.mustChangePassword 
       },
     });
   } catch (err) {
