@@ -2,20 +2,14 @@ const mongoose = require("mongoose");
 
 const apcSchema = new mongoose.Schema(
   {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-      unique: true,
-    },
-    name: {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, unique: true },
+    name: { type: String, required: true },
+    rollNumber: { type: String, unique: true },
+    contact: { 
       type: String,
-      required: true,
+      match: [/^\d{10}$/, "Phone number must be exactly 10 digits"]
     },
-    contact: {
-      type: String,
-      required: true,
-    },
+    assignedCompanies: [{ type: mongoose.Schema.Types.ObjectId, ref: "Company" }],
   },
   { timestamps: true }
 );

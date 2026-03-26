@@ -17,16 +17,12 @@ interface ProfileData {
   emergencyContactPhone: string;
   friendContactName: string;
   friendContactPhone: string;
-  department: string;
-  cgpa: string;
-  resumeUrl: string;
 }
 
 const EMPTY_PROFILE: ProfileData = {
   name: "", rollNo: "", email: "", phone: "",
   emergencyContactName: "", emergencyContactPhone: "",
   friendContactName: "", friendContactPhone: "",
-  department: "", cgpa: "", resumeUrl: "",
 };
 
 export function StudentProfilePage({ rollNo }: { rollNo: string }) {
@@ -45,9 +41,6 @@ export function StudentProfilePage({ rollNo }: { rollNo: string }) {
     emergencyContactPhone: raw.emergencyContact?.phone ?? "",
     friendContactName: raw.friendContact?.name ?? "",
     friendContactPhone: raw.friendContact?.phone ?? "",
-    department: raw.branch ?? raw.department ?? "",
-    cgpa: raw.cgpa?.toString() ?? "8.5",
-    resumeUrl: raw.resume ?? raw.resumeUrl ?? "",
   });
 
   const fetchProfile = useCallback(async () => {
@@ -171,80 +164,9 @@ export function StudentProfilePage({ rollNo }: { rollNo: string }) {
         </CardContent>
       </Card>
 
-      {/* Academic Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center"><GraduationCap className="h-5 w-5 mr-2 text-gray-600" />Academic Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="department">Department / Branch</Label>
-              <Input id="department" value={profileData.department} disabled className="bg-gray-50" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cgpa">CGPA</Label>
-              <Input id="cgpa" value={profileData.cgpa} disabled className="bg-gray-50" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Resume */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center"><FileText className="h-5 w-5 mr-2 text-gray-600" />Resume</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {profileData.resumeUrl ? (
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="flex items-center">
-                <FileText className="h-8 w-8 text-indigo-600 mr-3" />
-                <div>
-                  <p className="font-medium text-gray-900 truncate max-w-xs">{profileData.resumeUrl.split("/").pop()}</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => window.open(profileData.resumeUrl, "_blank")}>View</Button>
-              </div>
-            </div>
-          ) : (
-            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 text-center text-gray-500">
-              No resume uploaded yet.
-            </div>
-          )}
-          {isEditing && (
-            <div className="mt-4">
-              <Label htmlFor="resume-upload" className="flex items-center mb-2">
-                <Upload className="h-4 w-4 mr-2" /> Upload Resume (PDF only)
-              </Label>
-              <input
-                id="resume-upload"
-                type="file"
-                accept="application/pdf"
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                disabled={uploading}
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  if (file.type !== "application/pdf") { toast.error("Only PDF files are allowed"); return; }
-                  setUploading(true);
-                  try {
-                    const res: any = await studentApi.uploadResume(file);
-                    setProfileData((prev) => ({ ...prev, resumeUrl: res.resumePath ?? res.resume ?? prev.resumeUrl }));
-                    toast.success("Resume uploaded successfully!");
-                  } catch (err: any) {
-                    toast.error(err.message ?? "Failed to upload resume");
-                  } finally {
-                    setUploading(false);
-                  }
-                }}
-              />
-              {uploading && <p className="text-sm text-gray-400 mt-1 flex items-center"><Loader2 className="h-3 w-3 animate-spin mr-1" /> Uploading…</p>}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+
 
       {/* Profile completion badge */}
       {!profileData.phone && !profileData.emergencyContactPhone && (

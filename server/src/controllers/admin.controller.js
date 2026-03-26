@@ -208,6 +208,10 @@ const addStudent = async (req, res) => {
     console.log("[addStudent] Request body:", JSON.stringify(req.body));
     const { name, rollNumber, email, phone } = req.body;
     if (!name || !rollNumber || !email || !phone) return res.status(400).json({ message: "Name, Roll Number, Email ID, and Phone Number are required" });
+    
+    // Validate phone number format (must be 10 digits)
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone)) return res.status(400).json({ message: "Phone number must be exactly 10 digits" });
 
     const instituteId = rollNumber;
     const finalEmail = email;

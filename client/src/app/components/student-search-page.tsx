@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
-import { Search, Phone, Mail, FileText, Clock, Eye, Loader2, UserPlus, Upload } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/app/components/ui/dialog";
+import { Search, Phone, Mail, FileText, Clock, Eye, Loader2, UserPlus, Upload, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/app/components/ui/dialog";
+import { Label } from "@/app/components/ui/label";
 import { toast } from "sonner";
 import { adminApi } from "@/app/lib/api";
 import { ROLES } from "@/app/utils/constants";
@@ -45,6 +46,9 @@ export function StudentSearchPage({ onStudentClick, fetchApi, allowAdd = false }
     email: "",
     phone: "",
   });
+  const [addMethod, setAddMethod] = useState<"manual" | "excel">("manual");
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   const normalizeStudent = (raw: any): Student => ({
     id: raw._id,
@@ -97,9 +101,7 @@ export function StudentSearchPage({ onStudentClick, fetchApi, allowAdd = false }
       s.rollNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
-  const handleAddStudent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("[AddStudent] Form submitted, data:", formData);
+  const handleAddStudent = async () => {
     if (!formData.name || !formData.rollNumber || !formData.email || !formData.phone) {
       toast.error("Name, Roll Number, Email ID, and Phone Number are required");
       return;
@@ -116,9 +118,7 @@ export function StudentSearchPage({ onStudentClick, fetchApi, allowAdd = false }
         email: formData.email,
         phone: formData.phone,
       };
-      console.log("[AddStudent] Sending API request with payload:", payload);
       const res: any = await adminApi.addStudent(payload);
-      console.log("[AddStudent] API response:", res);
       toast.success(`Student added! Login ID: ${res.credentials?.instituteId}, Password: ${res.credentials?.password}`);
       setIsAddModalOpen(false);
       setFormData({ name: "", rollNumber: "", email: "", phone: "" });
@@ -132,23 +132,46 @@ export function StudentSearchPage({ onStudentClick, fetchApi, allowAdd = false }
     }
   };
 
-  const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const uploadData = new FormData();
-    uploadData.append("file", file);
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      const selected = Array.from(event.target.files);
+      setFiles((prev) => [...prev, ...selected]);
+    }
+    event.target.value = "";
+  };
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleConfirmUpload = async () => {
+    if (files.length === 0) return;
+    setUploading(true);
+    let errorCount = 0;
     try {
-      const res: any = await adminApi.uploadStudentExcel(uploadData);
-      toast.success(res.message || "Students uploaded from Excel successfully");
-      if (res.problemList?.length > 0) {
-        toast.warning(`${res.problemList.length} row(s) had issues. Check console for details.`);
-        console.warn("Student Excel errors:", res.problemList);
+      for (const file of files) {
+        const uploadData = new FormData();
+        uploadData.append("file", file);
+        const res: any = await adminApi.uploadStudentExcel(uploadData);
+        if (res.problemList?.length > 0) {
+          errorCount += res.problemList.length;
+          console.warn(`Excel import errors in ${file.name}:`, res.problemList);
+        }
       }
+
+      toast.success("Students uploaded successfully");
+      if (errorCount > 0) {
+        toast.warning(`${errorCount} row(s) had issues across files. Check console.`);
+      }
+
+      setIsAddModalOpen(false);
+      setFiles([]);
       fetchStudents(searchQuery);
     } catch (err: any) {
       toast.error(err.message ?? "Upload failed");
+    } finally {
+      setUploading(false);
     }
-    event.target.value = "";
   };
   return (
     <div className="space-y-8">
@@ -159,68 +182,156 @@ export function StudentSearchPage({ onStudentClick, fetchApi, allowAdd = false }
         </div>
         {allowAdd && (
           <div className="flex gap-2">
-            {/* Excel Upload for Students */}
-            <div className="relative group">
-              <input id="student-excel-upload" type="file" accept=".xlsx,.xls" onChange={handleExcelUpload} className="hidden" />
-              <Button
-                variant="outline"
-                className="flex items-center gap-2 border-gray-300"
-                onClick={() => document.getElementById("student-excel-upload")?.click()}
-              >
-                <Upload className="h-4 w-4" /> Upload Students (Excel)
-              </Button>
-              <div className="absolute top-12 right-0 hidden group-hover:block bg-gray-900 text-white text-xs rounded p-2 z-10 w-64 shadow-lg">
-                Excel must have exactly 4 columns in any order: <strong>Name, Roll Number, Email ID, Phone Number</strong>.
-              </div>
-            </div>
-
             <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-green-600 hover:bg-green-700 flex items-center gap-2">
+                <Button className="bg-green-600 hover:bg-green-700 flex items-center gap-2 h-11 shadow-sm">
                   <UserPlus className="h-4 w-4" />
                   Add Student
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-2xl">
                 <DialogHeader>
                   <DialogTitle>Add New Student</DialogTitle>
+                  <DialogDescription>
+                    Choose how you want to add students - manually or via Excel upload.
+                  </DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleAddStudent} className="space-y-4 pt-4">
-                  <Input
-                    placeholder="Full Name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                  />
-                  <Input
-                    placeholder="Roll Number"
-                    value={formData.rollNumber}
-                    onChange={(e) => setFormData({ ...formData, rollNumber: e.target.value })}
-                    required
-                  />
-                  <Input
-                    placeholder="Email ID"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    required
-                  />
-                  <Input
-                    placeholder="Phone Number (10 digits)"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    required
-                    pattern="\d{10}"
-                    title="Must be a valid 10-digit phone number"
-                  />
-                  <p className="text-xs text-gray-500">
-                    A random secure password will be auto-generated and emailed to the student. They will be forced to reset it upon first login.
-                  </p>
-                  <Button type="submit" className="w-full bg-indigo-600" disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Create Student Account
-                  </Button>
-                </form>
+
+                <div className="flex gap-2 border-b border-gray-200 pt-4">
+                  {(["manual", "excel"] as const).map((method) => (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => setAddMethod(method)}
+                      className={`px-4 py-2 font-medium transition-colors border-b-2 ${addMethod === method
+                        ? "border-indigo-600 text-indigo-600"
+                        : "border-transparent text-gray-500 hover:text-gray-700"
+                        }`}
+                    >
+                      {method === "manual" ? "Manual Entry" : "Upload Excel"}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="py-4">
+                  {addMethod === "manual" ? (
+                    <div className="space-y-4 pt-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="s-name">Full Name *</Label>
+                        <Input
+                          id="s-name"
+                          placeholder="Enter name"
+                          value={formData.name}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="s-roll">Roll Number *</Label>
+                        <Input
+                          id="s-roll"
+                          placeholder="Enter roll number"
+                          value={formData.rollNumber}
+                          onChange={(e) => setFormData({ ...formData, rollNumber: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="s-email">Email ID *</Label>
+                        <Input
+                          id="s-email"
+                          placeholder="Enter email"
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="s-phone">Phone Number *</Label>
+                        <Input
+                          id="s-phone"
+                          placeholder="Enter 10-digit phone number"
+                          value={formData.phone}
+                          onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                          minLength={10}
+                          maxLength={10}
+                          pattern="\d{10}"
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-4">
+                        A random secure password will be auto-generated and emailed to the student. They will be forced to reset it upon first login.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 pt-4">
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-indigo-400 transition-colors relative">
+                        {uploading && (
+                          <div className="absolute inset-0 bg-white/50 z-10 flex flex-col items-center justify-center rounded-lg">
+                            <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mb-2" />
+                            <span className="text-sm font-medium text-indigo-900">Uploading...</span>
+                          </div>
+                        )}
+                        <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <h3 className="font-semibold text-gray-900 mb-2">Upload Excel File</h3>
+                        <p className="text-sm text-gray-500 mb-4">Upload an Excel file (.xlsx, .xls) with student details</p>
+                        <input id="student-excel-upload" type="file" multiple accept=".xlsx,.xls" onChange={handleFileSelect} className="hidden" />
+                        <Button type="button" variant="outline" onClick={() => document.getElementById("student-excel-upload")?.click()} disabled={uploading}>
+                          <Upload className="h-4 w-4 mr-2" />
+                          Choose Files
+                        </Button>
+                      </div>
+
+                      {files.length > 0 && (
+                        <div className="bg-white border rounded-lg p-4 space-y-2">
+                          <h4 className="text-sm font-semibold text-gray-700">Selected Files:</h4>
+                          {files.map((file, idx) => (
+                            <div key={idx} className="flex items-center justify-between bg-gray-50 p-2 rounded text-sm text-gray-600 border">
+                              <span className="truncate">{file.name}</span>
+                              <button
+                                type="button"
+                                onClick={() => removeFile(idx)}
+                                className="text-red-500 hover:text-red-700 p-1"
+                                disabled={uploading}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h4 className="font-semibold text-blue-900 mb-2 text-sm">Excel Format Requirements:</h4>
+                        <p className="text-xs text-blue-800 mb-2">Columns must be in any order with these exact names:</p>
+                        <ul className="text-xs text-blue-800 space-y-1 list-disc list-inside">
+                          <li><strong>Name</strong> (required)</li>
+                          <li><strong>Roll Number</strong> (required, unique)</li>
+                          <li><strong>Email ID</strong> (required, unique)</li>
+                          <li><strong>Phone Number</strong> (required, 10 digits)</li>
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => {
+                    setIsAddModalOpen(false);
+                    setFiles([]);
+                  }} disabled={uploading}>Cancel</Button>
+                  {addMethod === "manual" && (
+                    <Button onClick={handleAddStudent} disabled={isSubmitting} className="bg-indigo-600">
+                      {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}Create Student Account
+                    </Button>
+                  )}
+                  {addMethod === "excel" && (
+                    <Button onClick={handleConfirmUpload} disabled={files.length === 0 || uploading} className="bg-indigo-600">
+                      {uploading ? (
+                        <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Uploading...</>
+                      ) : (
+                        "Add Students"
+                      )}
+                    </Button>
+                  )}
+                </DialogFooter>
               </DialogContent>
             </Dialog>
           </div>

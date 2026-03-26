@@ -8,7 +8,6 @@ const ExcelUpload = require("../models/ExcelUpload.model");
 const crypto = require("crypto");
 const { sendWelcomeEmail, sendCocoWelcomeEmail } = require("./email.service");
 const { createCoco } = require("./coco.service");
-const { createApc } = require("./apc.service");
 
 const processCompanyExcel = async (uploadId, filePath) => {
   try {
@@ -186,6 +185,12 @@ const processStudentExcel = async (uploadId, filePath) => {
         continue;
       }
 
+      // Validate 10-digit phone number
+      if (!/^\d{10}$/.test(String(phone).trim())) {
+        problemList.push(`Row ${i + 2}: Invalid phone number (must be 10 digits): ${phone}`);
+        continue;
+      }
+
       const instituteId = roll;
       const exist = await User.findOne({ $or: [{ instituteId }, { email }] });
       if (exist) {
@@ -227,50 +232,4 @@ const processStudentExcel = async (uploadId, filePath) => {
   }
 };
 
-const processApcExcel = async (uploadId, filePath) => {
-  try {
-    const wb = XLSX.readFile(filePath);
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-
-    const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-    if (rawData.length === 0) throw new Error("Excel file is empty");
-    const headers = rawData[0].map(h => String(h).trim());
-    if (headers[0] !== "Name" || headers[1] !== "Email" || headers[2] !== "Institute ID" || headers[3] !== "Phone Number") {
-      throw new Error("Invalid Excel format. Required columns: Name, Email, Institute ID, Phone Number");
-    }
-
-    const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-    let processed = 0;
-    const problemList = [];
-
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const name = String(row["Name"] || "").trim();
-      const email = String(row["Email"] || "").trim().toLowerCase();
-      const roll = String(row["Institute ID"] || "").trim();
-      const phone = String(row["Phone Number"] || "").trim();
-
-      if (!name || !email || !roll || !phone) {
-        problemList.push(`Row ${i + 2}: Missing one of required fields (Name, Email, Institute ID, Phone Number)`);
-        continue;
-      }
-
-      try {
-        await createApc({ name, email, rollNumber: roll, contact: phone });
-        processed++;
-      } catch (err) {
-        problemList.push(`Row ${i + 2}: ${err.message}`);
-        if (err.message.includes("Account created successfully")) {
-          processed++;
-        }
-      }
-    }
-    await ExcelUpload.findByIdAndUpdate(uploadId, { status: "success", recordsProcessed: processed, problemList });
-    return { processed, problemList };
-  } catch (err) {
-    await ExcelUpload.findByIdAndUpdate(uploadId, { status: "failed", problemList: [err.message] });
-    throw err;
-  }
-};
-
-module.exports = { processCompanyExcel, processShortlistExcel, processCocoExcel, processStudentExcel, processApcExcel };
+module.exports = { processCompanyExcel, processShortlistExcel, processCocoExcel, processStudentExcel };

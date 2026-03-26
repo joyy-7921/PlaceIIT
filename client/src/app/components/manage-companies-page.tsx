@@ -4,7 +4,7 @@ import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Textarea } from "@/app/components/ui/textarea";
-import { Search, Plus, Upload, MapPin, UserCog, Users, Calendar, Clock, Eye, Loader2 } from "lucide-react";
+import { Search, Plus, Upload, MapPin, UserCog, Users, Calendar, Clock, Eye, Loader2, X, Check } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -56,7 +56,13 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
   const [newCompanyDay, setNewCompanyDay] = useState("");
   const [newCompanySlot, setNewCompanySlot] = useState("");
   const [newCompanyVenue, setNewCompanyVenue] = useState("");
+  
+  // Manual student addition states
   const [manualStudentList, setManualStudentList] = useState("");
+  const [studentSearchTerm, setStudentSearchTerm] = useState("");
+  const [studentSuggestions, setStudentSuggestions] = useState<any[]>([]);
+  const [selectedStudentsForShortlist, setSelectedStudentsForShortlist] = useState<any[]>([]);
+  const [isSearchingStudents, setIsSearchingStudents] = useState(false);
 
   const normalizeCompany = (raw: any): Company => ({
     id: raw._id ?? raw.id ?? "",
@@ -182,19 +188,49 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
     event.target.value = "";
   };
 
+  useEffect(() => {
+    if (!studentSearchTerm || studentSearchTerm.length < 2) {
+      setStudentSuggestions([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingStudents(true);
+      try {
+        const data: any = await adminApi.searchStudents(studentSearchTerm);
+        setStudentSuggestions(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to search students", err);
+      } finally {
+        setIsSearchingStudents(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [studentSearchTerm]);
+
+  const toggleStudentSelection = (student: any) => {
+    setSelectedStudentsForShortlist(prev => {
+      const exists = prev.find(s => s._id === student._id);
+      if (exists) {
+        return prev.filter(s => s._id !== student._id);
+      } else {
+        return [...prev, student];
+      }
+    });
+  };
+
   const handleAddStudentsManually = async () => {
-    if (!selectedCompanyId || !manualStudentList) return;
-    const rollNumbers = manualStudentList.split("\n").map((s) => s.trim()).filter(Boolean);
-    if (rollNumbers.length === 0) return;
+    if (!selectedCompanyId || selectedStudentsForShortlist.length === 0) return;
+    const rollNumbers = selectedStudentsForShortlist.map(s => s.rollNumber);
     setSaving(true);
     try {
       const res: any = await adminApi.shortlistStudents(selectedCompanyId, rollNumbers);
       const count = res.shortlisted?.length ?? rollNumbers.length;
       toast.success(`${count} student(s) shortlisted successfully!`);
-      if (res.notFound?.length > 0) {
-        toast.warning(`Roll numbers not found: ${res.notFound.join(", ")}`);
-      }
-      setManualStudentList("");
+      
+      setSelectedStudentsForShortlist([]);
+      setStudentSearchTerm("");
       setIsAddStudentsOpen(false);
       await fetchCompanies();
     } catch (err: any) {
@@ -412,20 +448,81 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
                         <Plus className="h-4 w-4" /> Add Students Manually
                       </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="max-w-md">
                       <DialogHeader>
                         <DialogTitle>Add Shortlisted Students</DialogTitle>
-                        <DialogDescription>Enter student roll numbers (one per line). For production, use Excel upload.</DialogDescription>
+                        <DialogDescription>Search for students by roll number or name to add them to the shortlist.</DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
                         <div className="space-y-2">
-                          <Label htmlFor="student-list">Student Roll Numbers</Label>
-                          <Textarea id="student-list" placeholder="21CS001&#10;21CS002&#10;21EC015" value={manualStudentList} onChange={(e) => setManualStudentList(e.target.value)} rows={8} />
+                          <Label>Search Students</Label>
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <Input
+                              placeholder="Type roll no (e.g. 241...)"
+                              value={studentSearchTerm}
+                              onChange={(e) => setStudentSearchTerm(e.target.value)}
+                              className="pl-9"
+                            />
+                            {isSearchingStudents && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />}
+                          </div>
+                          
+                          {/* Suggestions Dropdown */}
+                          {studentSuggestions.length > 0 && (
+                            <div className="absolute z-50 mt-1 w-[calc(100%-48px)] max-h-60 overflow-auto bg-white border border-gray-200 rounded-md shadow-lg">
+                              {studentSuggestions.map((s) => {
+                                const isSelected = selectedStudentsForShortlist.some(sel => sel._id === s._id);
+                                return (
+                                  <div
+                                    key={s._id}
+                                    className="px-4 py-2 hover:bg-indigo-50 cursor-pointer flex items-center justify-between border-b last:border-0"
+                                    onClick={() => toggleStudentSelection(s)}
+                                  >
+                                    <div>
+                                      <div className="font-medium text-sm text-gray-900">{s.name}</div>
+                                      <div className="text-xs text-gray-500">{s.rollNumber} • {s.branch}</div>
+                                    </div>
+                                    {isSelected && <Check className="h-4 w-4 text-indigo-600" />}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Selected Students List */}
+                        <div className="space-y-2">
+                          <Label className="text-xs font-semibold text-gray-500 uppercase">Selected Students ({selectedStudentsForShortlist.length})</Label>
+                          <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-1">
+                            {selectedStudentsForShortlist.length === 0 ? (
+                              <p className="text-sm text-gray-400 italic">No students selected yet.</p>
+                            ) : (
+                              selectedStudentsForShortlist.map((s) => (
+                                <div key={s._id} className="flex items-center gap-1.5 bg-indigo-100 text-indigo-700 px-2 py-1 rounded-md text-sm">
+                                  <span>{s.rollNumber}</span>
+                                  <button onClick={() => toggleStudentSelection(s)} className="hover:text-indigo-900">
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
                         </div>
                       </div>
                       <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsAddStudentsOpen(false)}>Cancel</Button>
-                        <Button onClick={handleAddStudentsManually}>Add Students</Button>
+                        <Button variant="outline" onClick={() => {
+                          setIsAddStudentsOpen(false);
+                          setSelectedStudentsForShortlist([]);
+                          setStudentSearchTerm("");
+                        }}>Cancel</Button>
+                        <Button
+                          onClick={handleAddStudentsManually}
+                          disabled={saving || selectedStudentsForShortlist.length === 0}
+                          className="bg-indigo-600 hover:bg-indigo-700"
+                        >
+                          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Add {selectedStudentsForShortlist.length} Student{selectedStudentsForShortlist.length !== 1 ? 's' : ''}
+                        </Button>
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>

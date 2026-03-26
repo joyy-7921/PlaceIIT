@@ -45,7 +45,7 @@ const sendOtpEmail = async (to, otp) => {
  * @param {string} roll      - student roll number
  * @param {string} password  - auto-generated password
  */
-const sendWelcomeEmail = async (to, name, roll, password) => {
+const sendWelcomeEmail = async (to, name, roll, username, password) => {
   const mailOptions = {
     from: `"PlaceIIT" <${process.env.EMAIL_USER}>`,
     to,
@@ -57,7 +57,10 @@ const sendWelcomeEmail = async (to, name, roll, password) => {
         <p style="color: #374151;">Your student account has been successfully created. You can now log into the placement portal using the credentials below:</p>
         
         <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 24px 0;">
-          <p style="margin: 0 0 12px 0; color: #111827;"><strong>Roll Number:</strong> <span style="font-family: monospace; background: #fff; padding: 4px 8px; border-radius: 4px; border: 1px solid #d1d5db;">${roll}</span></p>
+          <p style="margin: 0 0 12px 0; color: #111827;"><strong>Name:</strong> ${name}</p>
+          <p style="margin: 0 0 12px 0; color: #111827;"><strong>Roll Number:</strong> ${roll}</p>
+          <p style="margin: 0 0 12px 0; color: #111827;"><strong>Email ID:</strong> ${to}</p>
+          <p style="margin: 0 0 12px 0; color: #111827;"><strong>Username:</strong> <span style="font-family: monospace; background: #fff; padding: 4px 8px; border-radius: 4px; border: 1px solid #d1d5db;">${username}</span></p>
           <p style="margin: 0; color: #111827;"><strong>Temporary Password:</strong> <span style="font-family: monospace; background: #fff; padding: 4px 8px; border-radius: 4px; border: 1px solid #d1d5db;">${password}</span></p>
         </div>
 
