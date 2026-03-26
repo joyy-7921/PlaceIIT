@@ -24,9 +24,7 @@ const queueEntrySchema = new mongoose.Schema(
 
 // We need to drop the old strictly company+student index if it exists,
 // so students can exist in Round 1 and Round 2 simultaneously.
-queueEntrySchema.post("init", async function (doc, next) {
-  next();
-});
+
 
 // Drop old index safely when model is registered
 queueEntrySchema.on("index", async (error) => {

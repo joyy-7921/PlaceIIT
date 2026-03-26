@@ -14,6 +14,7 @@ const queueService = require("../services/queue.service");
 const getProfile = async (req, res) => {
   try {
     const student = await Student.findOne({ userId: req.user.id })
+      .populate("userId", "email")
       .populate("shortlistedCompanies", "name logo day slot venue mode currentRound");
     if (!student) return res.status(404).json({ message: "Student not found" });
     res.json(student);
@@ -27,17 +28,23 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const { contact, emergencyContact, friendContact, branch, batch, email } = req.body;
-    const student = await Student.findOneAndUpdate(
+    await Student.findOneAndUpdate(
       { userId: req.user.id },
       { contact, emergencyContact, friendContact, branch, batch, profileCompleted: true },
       { new: true }
     );
-    if (!student) return res.status(404).json({ message: "Student not found" });
     // Update email on User model if provided
     if (email) {
       await User.findByIdAndUpdate(req.user.id, { email });
     }
-    res.json(student);
+    
+    // Fetch and return the fully populated object so frontend has the updated email
+    const updatedStudent = await Student.findOne({ userId: req.user.id })
+      .populate("userId", "email")
+      .populate("shortlistedCompanies", "name logo day slot venue mode currentRound");
+      
+    if (!updatedStudent) return res.status(404).json({ message: "Student not found" });
+    res.json(updatedStudent);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -241,7 +248,13 @@ const getWalkIns = async (req, res) => {
 
     const result = await Promise.all(
       companies.map(async (c) => {
-        const queueEntries = student ? await Queue.find({ companyId: c._id, studentId: student._id }) : [];
+        const queueEntries = student
+          ? await Queue.find({
+            companyId: c._id,
+            studentId: student._id,
+            status: { $nin: ["rejected", "completed", "offer_given"] },
+          })
+          : [];
 
         if (queueEntries.length === 0) {
           return [{
@@ -273,13 +286,7 @@ const getWalkIns = async (req, res) => {
       })
     );
 
-    const flatResult = result.flat();
-    const terminalStatuses = ["completed", "offer_given", "rejected"];
-    const filteredResult = flatResult.filter(
-      (c) => !c.queueEntry || !terminalStatuses.includes(c.queueEntry.status)
-    );
-
-    res.json(filteredResult);
+    res.json(result.flat());
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -356,8 +363,24 @@ const submitQuery = async (req, res) => {
 // @route   GET /api/student/queries
 const getMyQueries = async (req, res) => {
   try {
-    const queries = await Query.find({ studentUserId: req.user.id }).sort({ createdAt: -1 });
-    res.json(queries);
+    const Apc = require("../models/Apc.model");
+    const queries = await Query.find({ studentUserId: req.user.id })
+      .populate("respondedBy", "instituteId email")
+      .sort({ createdAt: -1 });
+    
+    // Attach APC responder name
+    const result = await Promise.all(
+      queries.map(async (q) => {
+        const queryObj = q.toObject();
+        if (q.respondedBy) {
+          const responderApc = await Apc.findOne({ userId: q.respondedBy._id });
+          queryObj.respondedByName = responderApc ? responderApc.name : "APC";
+        }
+        return queryObj;
+      })
+    );
+    
+    res.json(result);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -391,5 +414,5 @@ module.exports = {
   joinQueue, joinWalkIn, leaveQueue, confirmSwitch, getWalkIns, getQueuePosition,
   getNotifications, markNotifRead, markAllNotifRead, clearAllNotifications,
   submitQuery, getMyQueries,
-  uploadResume, downloadResume,
+  uploadResume, downloadResume
 };

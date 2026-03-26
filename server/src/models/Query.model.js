@@ -26,6 +26,15 @@ const querySchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    respondedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    respondedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

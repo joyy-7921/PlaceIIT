@@ -4,12 +4,12 @@
   "description": "Real-time campus placement coordination platform",
   "main": "src/server.js",
   "scripts": {
-    "start": "bun src/server.js",
-    "dev": "bun --hot src/server.js",
-    "migrate": "bun src/migrate.js",
-    "migrate:status": "bun src/migrate.js --status",
-    "migrate:seed": "bun src/migrate.js --seed",
-    "seed": "bun src/seed.js"
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "migrate": "node src/migrate.js",
+    "migrate:status": "node src/migrate.js --status",
+    "migrate:seed": "node src/migrate.js --seed",
+    "seed": "node src/seed.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -743,9 +743,10 @@ const getQueries = async (req, res) => {
     const Query = require("../models/Query.model");
     const queries = await Query.find()
       .populate("studentUserId", "instituteId email")
+      .populate("respondedBy", "instituteId email")
       .sort({ createdAt: -1 });
 
-    // Try to attach student details if available
+    // Try to attach student details and responder name
     const Student = require("../models/Student.model");
     const result = await Promise.all(
       queries.map(async (q) => {
@@ -757,6 +758,11 @@ const getQueries = async (req, res) => {
         } else {
           queryObj.studentName = "Unknown";
           queryObj.studentRollNo = q.studentUserId?.instituteId || "Unknown";
+        }
+        // Attach APC responder name
+        if (q.respondedBy) {
+          const responderApc = await Apc.findOne({ userId: q.respondedBy._id });
+          queryObj.respondedByName = responderApc ? responderApc.name : "APC";
         }
         return queryObj;
       })
@@ -779,22 +785,53 @@ const respondToQuery = async (req, res) => {
       return res.status(400).json({ message: "Response is required" });
     }
 
+    // Look up APC name for the responding user
+    let apcName = "APC";
+    const apc = await Apc.findOne({ userId: req.user.id });
+    if (apc) {
+      apcName = apc.name;
+    }
+
+    // Build update fields
+    const updateFields = { status };
+    if (response) {
+      updateFields.response = response;
+      updateFields.respondedBy = req.user.id;
+      updateFields.respondedAt = new Date();
+    }
+
     const query = await Query.findByIdAndUpdate(
       req.params.id,
-      { response, status },
+      updateFields,
       { new: true }
     );
 
     if (!query) return res.status(404).json({ message: "Query not found" });
 
-    // Optional: Send real-time notification to the student
+    // Send notification to the student
     const notificationService = require("../services/notification.service");
-    await notificationService.sendNotification({
-      recipientId: query.studentUserId,
-      senderId: req.user.id,
-      message: `Your query regarding "${query.subject}" has been updated to ${status}.`,
-      type: "general",
-    });
+    
+    if (status === "replied" && response) {
+      // Rich reply notification with APC name, query subject, and response text
+      const truncatedResponse = response.length > 100 ? response.substring(0, 100) + "..." : response;
+      await notificationService.sendNotification({
+        recipientId: query.studentUserId,
+        senderId: req.user.id,
+        message: `APC ${apcName} replied to your query '${query.subject}': '${truncatedResponse}'`,
+        type: "query_reply",
+        queryId: query._id,
+        source: "apc",
+      });
+    } else if (status === "resolved") {
+      await notificationService.sendNotification({
+        recipientId: query.studentUserId,
+        senderId: req.user.id,
+        message: `Your query '${query.subject}' has been marked as resolved`,
+        type: "query_resolved",
+        queryId: query._id,
+        source: "apc",
+      });
+    }
 
     res.json(query);
   } catch (err) {

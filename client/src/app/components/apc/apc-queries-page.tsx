@@ -25,6 +25,7 @@ interface Query {
   message: string;
   status: "pending" | "replied" | "resolved";
   response?: string;
+  respondedByName?: string;
   createdAt: string;
 }
 
@@ -176,7 +177,9 @@ export function APCQueriesPage() {
                         
                         {query.response && (
                           <div className="mt-3 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
-                            <p className="text-sm font-semibold text-indigo-900 mb-1">Your Response:</p>
+                            <p className="text-sm font-semibold text-indigo-900 mb-1">
+                              APC Response{query.respondedByName ? ` (by ${query.respondedByName})` : ""}:
+                            </p>
                             <p className="text-sm text-indigo-800">{query.response}</p>
                           </div>
                         )}

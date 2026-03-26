@@ -24,6 +24,7 @@ interface Query {
   status: "pending" | "replied" | "resolved";
   date: string;
   response?: string;
+  respondedByName?: string;
 }
 
 export function StudentContactPage() {
@@ -45,6 +46,7 @@ export function StudentContactPage() {
           status: q.status ?? "pending",
           date: q.createdAt,
           response: q.response ?? undefined,
+          respondedByName: q.respondedByName ?? undefined,
         }))
       );
     } catch (_) {}
@@ -150,7 +152,9 @@ export function StudentContactPage() {
                       </div>
                       {query.response && (
                         <div>
-                          <p className="text-sm font-medium text-gray-700 mb-1">Response:</p>
+                          <p className="text-sm font-medium text-gray-700 mb-1">
+                            APC Response{query.respondedByName ? ` (by ${query.respondedByName})` : ""}:
+                          </p>
                           <p className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-100">
                             {query.response}
                           </p>
