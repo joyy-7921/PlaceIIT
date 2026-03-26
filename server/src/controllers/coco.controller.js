@@ -10,6 +10,7 @@ const roundService = require("../services/round.service");
 const { PREDEFINED_NOTIFICATIONS } = require("../utils/constants");
 
 const ACTIVE_QUEUE_STATUSES = ["in_queue", "in_interview", "on_hold", "pending", "not_joined"];
+const ROUND_TRACKING_QUEUE_STATUSES = ["in_queue", "in_interview", "on_hold", "not_joined", "completed"];
 
 const getQueueEntryPriority = (entry) => {
   const statusPriority = {
@@ -313,7 +314,7 @@ const getRounds = async (req, res) => {
       const fallbackRoundStr = `Round ${round.roundNumber}`;
       const queueEntries = await Queue.find({
         companyId: req.params.companyId,
-        status: { $ne: "pending" },
+        status: { $in: ROUND_TRACKING_QUEUE_STATUSES },
         $or: [
           { roundId: round._id },
           { round: roundNameStr },

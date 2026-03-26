@@ -43,6 +43,7 @@ interface Company {
   priority: number;
   round: string;
   isWalkin: boolean;
+  isWalkinEligible: boolean;
 }
 
 const CAN_JOIN = [null, "not_joined", "exited", "rejected", "upcoming"];
@@ -92,6 +93,7 @@ export function StudentHomePage() {
       priority: raw.priorityOrder ?? raw.order ?? index + 1,
       round: raw.round ?? "Round 1",
       isWalkin,
+      isWalkinEligible: raw.walkInEligible ?? true,
     };
   };
 
@@ -160,6 +162,11 @@ export function StudentHomePage() {
   };
 
   const handleJoinQueue = async (company: Company) => {
+    if (company.isWalkin && !company.isWalkinEligible) {
+      toast.error("You have already interviewed for this company and cannot join its walk-in queue again.");
+      return;
+    }
+
     setActionLoading(`${company.id}-${company.round}`);
     optimisticUpdate(company.id, company.round, "pending");
     try {
@@ -257,6 +264,7 @@ export function StudentHomePage() {
   const renderCompanyCard = (company: Company) => {
     const s = company.queueStatus;
     const busy = actionLoading === `${company.id}-${company.round}`;
+    const canJoin = CAN_JOIN.includes(s) && (!company.isWalkin || company.isWalkinEligible);
 
     return (
       <Card key={`${company.id}-${company.round}`} className={`transition-all ${getCardClass(s)}`}>
@@ -279,7 +287,6 @@ export function StudentHomePage() {
                 <div className="flex flex-wrap items-center gap-2 mb-1">
                   <CardTitle className="text-xl text-gray-900">{company.name}</CardTitle>
                   <Badge variant="outline" className="text-xs">{company.round}</Badge>
-                  {!company.isWalkin && <Badge variant="outline" className="text-xs">Priority {company.priority}</Badge>}
                   {getStatusBadge(s)}
                 </div>
                 {company.role && <p className="text-sm text-gray-600 mb-1">{company.role}</p>}
@@ -287,7 +294,7 @@ export function StudentHomePage() {
             </div>
             {/* Header Action Button */}
             <div className="shrink-0 flex flex-col items-end gap-2">
-              {CAN_JOIN.includes(s) && (
+              {canJoin && (
                 <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white min-w-[110px]"
                   onClick={() => handleJoinQueue(company)} disabled={busy}>
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogIn className="h-4 w-4 mr-1" />Join Queue</>}

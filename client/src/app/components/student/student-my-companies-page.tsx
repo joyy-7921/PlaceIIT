@@ -466,7 +466,6 @@ export function StudentMyCompaniesPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2 mb-1">
                       <CardTitle className="text-xl text-gray-900">{company.name}</CardTitle>
-                      <Badge variant="outline" className="text-xs">Priority {company.priority}</Badge>
                       <Badge variant="outline" className="text-xs">{company.round}</Badge>
                       {company.isWalkIn && <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">Walk-in</Badge>}
                       {getStatusBadge(company.queueStatus)}

@@ -248,6 +248,14 @@ const getWalkIns = async (req, res) => {
 
     const result = await Promise.all(
       companies.map(async (c) => {
+        const hasInterviewHistory = student
+          ? await queueService.hasInterviewHistoryForCompany(student._id, c._id)
+          : false;
+
+        if (hasInterviewHistory) {
+          return [];
+        }
+
         const queueEntries = student
           ? await Queue.find({
             companyId: c._id,

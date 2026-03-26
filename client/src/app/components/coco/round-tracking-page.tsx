@@ -222,7 +222,10 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
           const roundsList = Array.isArray(roundsData) ? roundsData : roundsData.rounds ?? [];
           roundsList.forEach((rd: any) => {
             const rn = rd.roundNumber ?? rd.round ?? 1;
-            const studs = rd.students ?? [];
+            const studs = (rd.students ?? []).filter((student: any) => {
+              const queueStatus = student.status ?? student.queueEntry?.status;
+              return !["pending", "rejected", "exited"].includes(queueStatus);
+            });
             byRound[rn] = studs.map((s: any, i: number) => normalizeStudent(s, i, rn));
 
             if (rd.panels && Array.isArray(rd.panels)) {

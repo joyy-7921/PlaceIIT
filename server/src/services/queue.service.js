@@ -10,6 +10,19 @@ const InterviewRound = require("../models/InterviewRound.model");
 const ACTIVE_STATUSES = [STUDENT_STATUS.PENDING, STUDENT_STATUS.IN_QUEUE, STUDENT_STATUS.IN_INTERVIEW];
 const TERMINAL_STATUSES = [STUDENT_STATUS.COMPLETED, STUDENT_STATUS.REJECTED, STUDENT_STATUS.EXITED, STUDENT_STATUS.OFFER_GIVEN];
 
+const hasInterviewHistoryForCompany = async (studentId, companyId) => {
+  const priorInterview = await Queue.exists({
+    studentId,
+    companyId,
+    $or: [
+      { interviewStartedAt: { $exists: true, $ne: null } },
+      { status: STUDENT_STATUS.IN_INTERVIEW },
+    ],
+  });
+
+  return !!priorInterview;
+};
+
 /* ─────────────────────────────────────────────────────────
    Helper: emit without crashing
 ───────────────────────────────────────────────────────── */
@@ -41,6 +54,9 @@ const joinQueue = async (studentId, companyId, round = "Round 1", isWalkIn = fal
 
   if (isWalkIn && !company.isWalkInEnabled)
     throw new Error("Walk-in is not enabled for this company");
+
+  if (isWalkIn && await hasInterviewHistoryForCompany(studentId, companyId))
+    throw new Error("You have already interviewed for this company and cannot join its walk-in queue again.");
 
   if (!isWalkIn) {
     const student = await Student.findById(studentId);
@@ -137,6 +153,9 @@ const switchAndJoin = async (studentId, fromCompanyId, fromRound, toCompanyId, t
 
   if (isWalkIn && !company.isWalkInEnabled)
     throw new Error("Walk-in is not enabled for this company");
+
+  if (isWalkIn && await hasInterviewHistoryForCompany(studentId, toCompanyId))
+    throw new Error("You have already interviewed for this company and cannot join its walk-in queue again.");
 
   if (!isWalkIn) {
     const student = await Student.findById(studentId);
@@ -267,13 +286,15 @@ const acceptQueueRequest = async (studentId, companyId, round = "Round 1") => {
   entry.status = STUDENT_STATUS.IN_QUEUE;
   await entry.save();
 
-  // Accepted students must become visible in company/student datasets.
-  await Company.findByIdAndUpdate(companyId, {
-    $addToSet: { shortlistedStudents: studentId },
-  });
-  await Student.findByIdAndUpdate(studentId, {
-    $addToSet: { shortlistedCompanies: companyId },
-  });
+  // Walk-in queue participation must not change shortlist membership.
+  if (!entry.isWalkIn) {
+    await Company.findByIdAndUpdate(companyId, {
+      $addToSet: { shortlistedStudents: studentId },
+    });
+    await Student.findByIdAndUpdate(studentId, {
+      $addToSet: { shortlistedCompanies: companyId },
+    });
+  }
 
   const studentDoc = await Student.findById(studentId);
   safeEmitTo(`company:${companyId}`, SOCKET_EVENTS.QUEUE_UPDATED, {
@@ -400,6 +421,7 @@ module.exports = {
   acceptQueueRequest,
   rejectQueueRequest,
   hasActiveQueue,
+  hasInterviewHistoryForCompany,
   ACTIVE_STATUSES,
   TERMINAL_STATUSES,
 };
