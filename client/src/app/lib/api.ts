@@ -184,6 +184,8 @@ export const cocoApi = {
         request(`/coco/company/${companyId}/panels`),
     toggleWalkIn: (companyId: string, data: { enabled: boolean }) =>
         request(`/coco/company/${companyId}/walkin`, { method: "PUT", body: JSON.stringify(data) }),
+    updateVenue: (companyId: string, venue: string) =>
+        request(`/coco/company/${companyId}/venue`, { method: "PUT", body: JSON.stringify({ venue }) }),
     addStudentToQueue: (data: { companyId: string; studentId: string }) =>
         request("/coco/queue/add", { method: "POST", body: JSON.stringify(data) }),
     updateStudentStatus: (data: { studentId: string; companyId: string; status: string; round?: string }) =>
