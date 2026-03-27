@@ -16,9 +16,6 @@ import {
   Search,
   Mail,
   Phone,
-  CheckCircle2,
-  XCircle,
-  Clock3,
   Edit3
 } from "lucide-react";
 import {
@@ -115,8 +112,6 @@ export function CompanyDetailsPage({
   }, [socket, companyId, fetchStudents]);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [filterBranch, setFilterBranch] = useState("all");
 
   // Editable fields
   const [editableName, setEditableName] = useState(companyName);
@@ -156,42 +151,9 @@ export function CompanyDetailsPage({
       student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       student.rollNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       student.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = filterStatus === "all" || student.status === filterStatus;
-    const matchesBranch = filterBranch === "all" || student.branch === filterBranch;
-    return matchesSearch && matchesStatus && matchesBranch;
+    return matchesSearch;
   });
 
-  const statusCounts = {
-    pending: students.filter(s => s.status === "Pending").length,
-    selected: students.filter(s => s.status === "Selected").length,
-    rejected: students.filter(s => s.status === "Rejected").length,
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "Selected":
-        return (
-          <div className="flex items-center gap-1.5 text-green-700 bg-green-50 px-3 py-1.5 rounded-full text-sm font-semibold">
-            <CheckCircle2 className="h-4 w-4" />
-            Selected
-          </div>
-        );
-      case "Rejected":
-        return (
-          <div className="flex items-center gap-1.5 text-red-700 bg-red-50 px-3 py-1.5 rounded-full text-sm font-semibold">
-            <XCircle className="h-4 w-4" />
-            Rejected
-          </div>
-        );
-      default:
-        return (
-          <div className="flex items-center gap-1.5 text-yellow-700 bg-yellow-50 px-3 py-1.5 rounded-full text-sm font-semibold">
-            <Clock3 className="h-4 w-4" />
-            Pending
-          </div>
-        );
-    }
-  };
 
   return (
     <div className="space-y-8">
@@ -344,8 +306,8 @@ export function CompanyDetailsPage({
         </CardContent>
       </Card>
 
-      {/* Statistics Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      {/* Statistics Card */}
+      <div className="grid gap-4 md:grid-cols-1 max-w-xs">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -357,88 +319,20 @@ export function CompanyDetailsPage({
             </div>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Pending</p>
-                <p className="text-3xl font-bold text-yellow-600 mt-1">{statusCounts.pending}</p>
-              </div>
-              <Clock3 className="h-8 w-8 text-yellow-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Selected</p>
-                <p className="text-3xl font-bold text-green-600 mt-1">{statusCounts.selected}</p>
-              </div>
-              <CheckCircle2 className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Rejected</p>
-                <p className="text-3xl font-bold text-red-600 mt-1">{statusCounts.rejected}</p>
-              </div>
-              <XCircle className="h-8 w-8 text-red-600" />
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
-      {/* Search and Filters */}
+      {/* Search */}
       <Card>
         <CardContent className="pt-6">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="md:col-span-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  type="text"
-                  placeholder="Search students..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <div>
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="Pending">Pending</SelectItem>
-                  <SelectItem value="Selected">Selected</SelectItem>
-                  <SelectItem value="Rejected">Rejected</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Select value={filterBranch} onValueChange={setFilterBranch}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by branch" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Branches</SelectItem>
-                  <SelectItem value="Computer Science">Computer Science</SelectItem>
-                  <SelectItem value="Electronics">Electronics</SelectItem>
-                  <SelectItem value="Mechanical">Mechanical</SelectItem>
-                  <SelectItem value="Civil">Civil</SelectItem>
-                  <SelectItem value="Electrical">Electrical</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              type="text"
+              placeholder="Search students..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
           </div>
         </CardContent>
       </Card>
@@ -464,8 +358,8 @@ export function CompanyDetailsPage({
               <Card key={student.id} className="hover:shadow-lg transition-shadow duration-200">
                 <CardContent className="py-5">
                   <div className="flex items-center justify-between">
-                    <div className="flex-1 grid md:grid-cols-6 gap-4 items-center">
-                      <div className="md:col-span-2">
+                    <div className="flex-1 grid md:grid-cols-3 gap-4 items-center">
+                      <div>
                         <div className="font-semibold text-gray-900 text-lg">{student.name}</div>
                         <div className="text-sm text-gray-500 mt-0.5">{student.rollNumber}</div>
                       </div>
@@ -479,20 +373,6 @@ export function CompanyDetailsPage({
                           <Phone className="h-3.5 w-3.5" />
                           <span>{student.phone}</span>
                         </div>
-                      </div>
-
-                      <div>
-                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Branch</div>
-                        <div className="text-sm font-semibold text-gray-900 mt-1">{student.branch}</div>
-                      </div>
-
-                      <div>
-                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">CGPA</div>
-                        <div className="text-sm font-semibold text-gray-900 mt-1">{student.cgpa}</div>
-                      </div>
-
-                      <div className="flex justify-end">
-                        {getStatusBadge(student.status)}
                       </div>
                     </div>
                   </div>
