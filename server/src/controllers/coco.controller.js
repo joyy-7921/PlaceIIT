@@ -51,21 +51,51 @@ const getShortlistedStudents = async (req, res) => {
       });
     if (!company) return res.status(404).json({ message: "Company not found" });
 
-    // Attach queue status
-    const students = await Promise.all(
-      company.shortlistedStudents.map(async (s) => {
-        const queueEntries = await Queue.find({ companyId: company._id, studentId: s._id })
-          .populate("roundId", "roundName roundNumber")
-          .sort({ updatedAt: -1, createdAt: -1 });
-
-        const activeQueueEntry = queueEntries.find((entry) => ACTIVE_QUEUE_STATUSES.includes(entry.status));
-        const q = activeQueueEntry
-          || queueEntries.sort((a, b) => getQueueEntryPriority(b) - getQueueEntryPriority(a))[0]
-          || null;
-
-        return { ...s.toObject(), queueEntry: q };
+    // 1. Fetch all queue entries for this company to catch walk-ins
+    const allQueueEntries = await Queue.find({ companyId: company._id })
+      .populate({
+        path: "studentId",
+        populate: { path: "userId", select: "email" }
       })
-    );
+      .populate("roundId", "roundName roundNumber")
+      .sort({ updatedAt: -1, createdAt: -1 });
+
+    // 2. Base set of students: shortlisted ones
+    const baseStudentsMap = new Map();
+    if (company.shortlistedStudents) {
+      company.shortlistedStudents.forEach(s => {
+        if (s && s._id) {
+          baseStudentsMap.set(s._id.toString(), s);
+        }
+      });
+    }
+
+    // 3. Add any queue entry students (like walk-ins) who aren't shortlisted
+    allQueueEntries.forEach(qe => {
+      if (qe.studentId && qe.studentId._id) {
+        const sId = qe.studentId._id.toString();
+        if (!baseStudentsMap.has(sId)) {
+          baseStudentsMap.set(sId, qe.studentId);
+        }
+      }
+    });
+
+    const allStudents = Array.from(baseStudentsMap.values());
+
+    // 4. Attach queue status
+    const students = allStudents.map((s) => {
+      const studentQueueEntries = allQueueEntries.filter(
+        qe => qe.studentId && qe.studentId._id && qe.studentId._id.toString() === s._id.toString()
+      );
+
+      const activeQueueEntry = studentQueueEntries.find((entry) => ACTIVE_QUEUE_STATUSES.includes(entry.status));
+      const q = activeQueueEntry
+        || studentQueueEntries.sort((a, b) => getQueueEntryPriority(b) - getQueueEntryPriority(a))[0]
+        || null;
+
+      return { ...s.toObject(), queueEntry: q };
+    });
+
     res.json(students);
   } catch (err) {
     res.status(500).json({ message: err.message });
