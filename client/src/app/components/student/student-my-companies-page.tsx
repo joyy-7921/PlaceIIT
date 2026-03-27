@@ -226,6 +226,8 @@ export function StudentMyCompaniesPage() {
   /* ─── Status Badge ─── */
   const getStatusBadge = (status: string | null) => {
     switch (status) {
+      case "not_joined":
+        return <Badge className="bg-purple-100 text-purple-800 border-purple-200"><Clock3 className="h-3 w-3 mr-1" />Yet to be Interviewed</Badge>;
       case "pending":
         return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200"><Clock3 className="h-3 w-3 mr-1" />Requested</Badge>;
       case "in_queue":

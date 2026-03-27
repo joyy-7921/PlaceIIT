@@ -406,9 +406,8 @@ const addStudentToRound = async (req, res) => {
       resolvedRoundId = resolvedRoundObj._id;
     }
 
-    // Translate frontend 'yet-to-interview' to backend 'not_joined'
-    let inputStatus = req.body.status === "yet-to-interview" ? "not_joined" : req.body.status;
-    let finalStatus = inputStatus || "in_queue";
+    // Backend only allows "not_joined" for newly added students
+    let finalStatus = "not_joined";
 
     const roundNameStr = resolvedRoundObj ? (resolvedRoundObj.roundName || `Round ${resolvedRoundObj.roundNumber}`) : "Round 1";
 
@@ -460,6 +459,25 @@ const addStudentToRound = async (req, res) => {
       $addToSet: { shortlistedCompanies: companyId },
     });
 
+    const studentDoc = await Student.findById(studentId);
+    if (studentDoc && studentDoc.userId) {
+      const companyDoc = await Company.findById(companyId);
+      const companyName = companyDoc ? companyDoc.name : "the company";
+      const message = `You have been added to ${roundNameStr} for ${companyName}`;
+      await notificationService.sendNotification({
+        recipientId: studentDoc.userId,
+        senderId: req.user.id,
+        companyId,
+        message,
+        type: "interview_call",
+      });
+      const { getIO } = require("../config/socket");
+      const io = getIO();
+      if (io) {
+        io.to(`user:${studentDoc.userId}`).emit("status:updated", { companyId, status: finalStatus });
+      }
+    }
+
     res.json(queueEntry);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -486,6 +504,9 @@ const uploadStudentsToRound = async (req, res) => {
       });
     }
 
+    const companyDoc = await Company.findById(companyId);
+    const companyName = companyDoc ? companyDoc.name : "the company";
+
     // Parse the Excel file
     const XLSX = require("xlsx");
     const workbook = XLSX.readFile(req.file.path);
@@ -508,14 +529,14 @@ const uploadStudentsToRound = async (req, res) => {
       let queueEntry = await Queue.findOne({ studentId: student._id, companyId });
       if (queueEntry) {
         queueEntry.roundId = round._id;
-        queueEntry.status = "in_queue";
+        queueEntry.status = "not_joined";
         await queueEntry.save();
       } else {
         await Queue.create({
           studentId: student._id,
           companyId,
           roundId: round._id,
-          status: "in_queue",
+          status: "not_joined",
         });
       }
 
@@ -526,6 +547,22 @@ const uploadStudentsToRound = async (req, res) => {
       await Student.findByIdAndUpdate(student._id, {
         $addToSet: { shortlistedCompanies: companyId },
       });
+
+      if (student.userId) {
+        const message = `You have been added to ${round.roundName} for ${companyName}`;
+        await notificationService.sendNotification({
+          recipientId: student.userId,
+          senderId: req.user.id,
+          companyId,
+          message,
+          type: "interview_call",
+        });
+        const { getIO } = require("../config/socket");
+        const io = getIO();
+        if (io) {
+          io.to(`user:${student.userId}`).emit("status:updated", { companyId, status: "not_joined" });
+        }
+      }
 
       added++;
     }

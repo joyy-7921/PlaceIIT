@@ -129,7 +129,7 @@ export function StudentHomePage() {
     studentApi.getDriveState().then((data: any) => {
       setDriveDay(data.currentDay ?? null);
       setDriveSlot(data.currentSlot ?? null);
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -286,7 +286,8 @@ export function StudentHomePage() {
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
                   <CardTitle className="text-xl text-gray-900">{company.name}</CardTitle>
-                  <Badge variant="outline" className="text-xs">{company.round}</Badge>
+                  {!company.isWalkin && <Badge variant="outline" className="text-xs">{company.round}</Badge>}
+                  {!company.isWalkin && <Badge variant="outline" className="text-xs">Priority {company.priority}</Badge>}
                   {getStatusBadge(s)}
                 </div>
                 {company.role && <p className="text-sm text-gray-600 mb-1">{company.role}</p>}
@@ -491,14 +492,14 @@ export function StudentHomePage() {
             return true;
           });
           return activeWalkins.length === 0 ? (
-          <Card className="bg-gray-50">
-            <CardContent className="py-8 text-center text-gray-500">No walk-in companies available right now.</CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2">
-            {activeWalkins.map(renderCompanyCard)}
-          </div>
-        );
+            <Card className="bg-gray-50">
+              <CardContent className="py-8 text-center text-gray-500">No walk-in companies available right now.</CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2">
+              {activeWalkins.map(renderCompanyCard)}
+            </div>
+          );
         })()}
       </div>
 

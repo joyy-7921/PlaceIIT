@@ -16,7 +16,7 @@ interface Student {
   id: string;
   name: string;
   rollNo: string;
-  status: "in-queue" | "yet-to-interview" | "completed" | "on-hold";
+  status: "in-queue" | "yet-to-interview" | "in-interview" | "completed" | "on-hold";
   round: number;
   position: number;
 }
@@ -38,6 +38,8 @@ const getStatusBadge = (status: string) => {
     case "in-queue":
       return <Badge className="bg-blue-50 text-blue-600 border-blue-200 font-normal"><Clock className="h-3 w-3 mr-1" />In Queue</Badge>;
     case "yet-to-interview":
+      return <Badge className="bg-purple-50 text-purple-600 border-purple-200 font-normal"><Clock className="h-3 w-3 mr-1" />Yet to be Interview</Badge>;
+    case "in-interview":
       return <Badge className="bg-yellow-50 text-yellow-600 border-yellow-200 font-normal"><AlertCircle className="h-3 w-3 mr-1" />In Interview</Badge>;
     case "completed":
       return <Badge className="bg-green-50 text-green-600 border-green-200 font-normal"><CheckCircle className="h-3 w-3 mr-1" />Completed</Badge>;
@@ -170,7 +172,8 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
     const statusRaw: string = raw.status ?? raw.queueEntry?.status ?? "in-queue";
     const statusMap: Record<string, Student["status"]> = {
       in_queue: "in-queue", waiting: "in-queue", "in-queue": "in-queue",
-      not_joined: "yet-to-interview", in_interview: "yet-to-interview", upcoming: "yet-to-interview", "yet-to-interview": "yet-to-interview",
+      not_joined: "yet-to-interview", "yet-to-interview": "yet-to-interview",
+      in_interview: "in-interview", upcoming: "in-interview", "in-interview": "in-interview",
       completed: "completed", done: "completed",
       on_hold: "on-hold"
     };
@@ -265,7 +268,7 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
           const roundNumber = Number(roundKey);
           byRound[roundNumber] = byRound[roundNumber].sort((a, b) => {
             if (a.status !== b.status) {
-              const statusOrder = ["in-queue", "on-hold", "yet-to-interview", "completed"];
+              const statusOrder = ["yet-to-interview", "in-queue", "on-hold", "in-interview", "completed"];
               return statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
             }
             return a.position - b.position;
@@ -344,7 +347,7 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
         await cocoApi.updateStudentStatus({
           studentId: student._id || student.id,
           companyId,
-          status: manualStatus === 'yet-to-interview' ? 'in_interview' : (manualStatus === 'on-hold' ? 'on_hold' : manualStatus),
+          status: manualStatus === 'yet-to-interview' ? 'not_joined' : (manualStatus === 'on-hold' ? 'on_hold' : manualStatus),
           round: `Round ${excelRound}`
         });
       }
@@ -447,9 +450,10 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
   const renderRoundColumn = (round: number) => {
     const students = studentsByRound[round] || [];
 
+    const yetToInterview = students.filter((s) => s.status === "yet-to-interview").sort((a, b) => a.position - b.position);
     const inQueueActive = students.filter((s) => s.status === "in-queue").sort((a, b) => a.position - b.position);
     const inQueueFlagged = students.filter((s) => s.status === "on-hold").sort((a, b) => a.position - b.position);
-    const yetToInterview = students.filter((s) => s.status === "yet-to-interview").sort((a, b) => a.position - b.position);
+    const inInterview = students.filter((s) => s.status === "in-interview").sort((a, b) => a.position - b.position);
     const completed = students.filter((s) => s.status === "completed").sort((a, b) => a.position - b.position);
 
     return (
@@ -482,12 +486,12 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
 
           {/* In Interview */}
           <h3 className="text-sm font-semibold text-yellow-600 flex items-center mt-6 mb-2">
-            <AlertCircle className="h-4 w-4 mr-1.5" /> In Interview ({yetToInterview.length})
+            <AlertCircle className="h-4 w-4 mr-1.5" /> In Interview ({inInterview.length})
           </h3>
-          {yetToInterview.length === 0 && (
+          {inInterview.length === 0 && (
             <div className="text-center py-5 text-xs text-gray-400 border border-dashed rounded-lg bg-gray-50/50">Empty</div>
           )}
-          {yetToInterview.map((s) => (
+          {inInterview.map((s) => (
             <StudentCard key={s.id} student={s} />
           ))}
 
@@ -500,6 +504,17 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
           )}
           {completed.map((s) => (
             <StudentCard key={s.id} student={s} />
+          ))}
+
+          {/* Yet to be Interviewed (Unassigned) */}
+          <h3 className="text-sm font-semibold text-purple-600 flex items-center mt-6 mb-2">
+            <Clock className="h-4 w-4 mr-1.5" /> Yet to be Interviewed ({yetToInterview.length})
+          </h3>
+          {yetToInterview.length === 0 && (
+            <div className="text-center py-5 text-xs text-gray-400 border border-dashed rounded-lg bg-gray-50/50">Empty</div>
+          )}
+          {yetToInterview.map((s) => (
+            <StudentCard key={s.id} student={s} index={undefined} />
           ))}
 
         </CardContent>
@@ -560,7 +575,7 @@ export function RoundTrackingPage({ companyName, onBack }: RoundTrackingPageProp
                       <SelectValue placeholder="Select Status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="yet-to-interview">In Interview</SelectItem>
+                      <SelectItem value="yet-to-interview">Yet to be Interviewed</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
