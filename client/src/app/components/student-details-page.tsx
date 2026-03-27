@@ -1,29 +1,16 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
-import { Input } from "@/app/components/ui/input";
 import {
   ArrowLeft,
   Mail,
   Phone,
   FileText,
   GraduationCap,
-  Building2,
   Calendar,
   Clock,
   MapPin,
-  Search,
-  CheckCircle2,
-  XCircle,
-  Clock3
 } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/app/components/ui/select";
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -92,48 +79,7 @@ export function StudentDetailsPage({
     fetchData();
   }, [fetchCompanies]);
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [filterDay, setFilterDay] = useState("all");
-
-  const filteredCompanies = companies.filter(company => {
-    const matchesSearch = company.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = filterStatus === "all" || company.status === filterStatus;
-    const matchesDay = filterDay === "all" || company.day === filterDay;
-    return matchesSearch && matchesStatus && matchesDay;
-  });
-
-  const statusCounts = {
-    pending: companies.filter(c => c.status === "Pending").length,
-    selected: companies.filter(c => c.status === "Selected").length,
-    rejected: companies.filter(c => c.status === "Rejected").length,
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "Selected":
-        return (
-          <div className="flex items-center gap-1.5 text-green-700 bg-green-50 px-3 py-1.5 rounded-full text-sm font-semibold">
-            <CheckCircle2 className="h-4 w-4" />
-            Selected
-          </div>
-        );
-      case "Rejected":
-        return (
-          <div className="flex items-center gap-1.5 text-red-700 bg-red-50 px-3 py-1.5 rounded-full text-sm font-semibold">
-            <XCircle className="h-4 w-4" />
-            Rejected
-          </div>
-        );
-      default:
-        return (
-          <div className="flex items-center gap-1.5 text-yellow-700 bg-yellow-50 px-3 py-1.5 rounded-full text-sm font-semibold">
-            <Clock3 className="h-4 w-4" />
-            Pending
-          </div>
-        );
-    }
-  };
+  const filteredCompanies = companies;
 
   if (loading) {
     return (
@@ -232,103 +178,6 @@ export function StudentDetailsPage({
         </CardContent>
       </Card>
 
-      {/* Statistics Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Total Companies</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{companies.length}</p>
-              </div>
-              <Building2 className="h-8 w-8 text-indigo-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Pending</p>
-                <p className="text-3xl font-bold text-yellow-600 mt-1">{statusCounts.pending}</p>
-              </div>
-              <Clock3 className="h-8 w-8 text-yellow-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Selected</p>
-                <p className="text-3xl font-bold text-green-600 mt-1">{statusCounts.selected}</p>
-              </div>
-              <CheckCircle2 className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Rejected</p>
-                <p className="text-3xl font-bold text-red-600 mt-1">{statusCounts.rejected}</p>
-              </div>
-              <XCircle className="h-8 w-8 text-red-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search and Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="md:col-span-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  type="text"
-                  placeholder="Search companies..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <div>
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="Pending">Pending</SelectItem>
-                  <SelectItem value="Selected">Selected</SelectItem>
-                  <SelectItem value="Rejected">Rejected</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Select value={filterDay} onValueChange={setFilterDay}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by day" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Days</SelectItem>
-                  <SelectItem value="Day 1">Day 1</SelectItem>
-                  <SelectItem value="Day 2">Day 2</SelectItem>
-                  <SelectItem value="Day 3">Day 3</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Shortlisted Companies List */}
       <div>
         <h2 className="text-xl font-bold text-gray-800 mb-4">Shortlisted Companies ({filteredCompanies.length})</h2>
@@ -344,7 +193,7 @@ export function StudentDetailsPage({
               <Card key={company.id} className="hover:shadow-lg transition-shadow duration-200">
                 <CardContent className="py-5">
                   <div className="flex items-center justify-between">
-                    <div className="flex-1 grid md:grid-cols-5 gap-4 items-center">
+                    <div className="flex-1 grid md:grid-cols-4 gap-4 items-center">
                       <div className="md:col-span-1">
                         <div className="font-semibold text-gray-900 text-lg">{company.name}</div>
                       </div>
@@ -373,9 +222,6 @@ export function StudentDetailsPage({
                         </div>
                       </div>
 
-                      <div className="flex justify-end">
-                        {getStatusBadge(company.status)}
-                      </div>
                     </div>
                   </div>
                 </CardContent>
