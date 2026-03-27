@@ -1,6 +1,6 @@
 /**
  * API Service Layer — centralised HTTP client for the PlaceIIT backend.
- * All requests go through the Vite proxy (/api → http://localhost:5001/api).
+ * All requests go through the Vite proxy (/api → http://localhost:5000/api).
  */
 
 const API_BASE = "/api";
@@ -259,7 +259,13 @@ export const adminApi = {
         request(`/admin/companies/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     searchStudents: (query: string) =>
         request(`/admin/students/search?q=${encodeURIComponent(query)}`),
-    getCocos: () => request("/admin/cocos"),
+    getCocos: (params?: { day?: number; slot?: string }) => {
+        const queryParts: string[] = [];
+        if (params?.day != null) queryParts.push(`day=${params.day}`);
+        if (params?.slot) queryParts.push(`slot=${encodeURIComponent(params.slot)}`);
+        const qs = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+        return request(`/admin/cocos${qs}`);
+    },
     /** Add a new CoCo directly (name, email, rollNumber, contact) */
     addCoco: (data: Record<string, unknown>) =>
         request("/admin/cocos", { method: "POST", body: JSON.stringify(data) }),

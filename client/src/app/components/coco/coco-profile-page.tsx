@@ -33,13 +33,28 @@ export function CoCoProfilePage({ userId }: { userId: string }) {
   const fetchProfile = useCallback(async () => {
     setLoading(true);
     try {
-      const [meData, companyData]: any[] = await Promise.all([
+      const [meData, companyData, driveData]: any[] = await Promise.all([
         authApi.getMe(),
         cocoApi.getAssignedCompany().catch(() => null),
+        cocoApi.getDriveState().catch(() => null),
       ]);
-      const companies = companyData
+
+      const driveDay = driveData?.currentDay ?? null;
+      const driveSlot = driveData?.currentSlot ?? null;
+
+      let companies = companyData
         ? Array.isArray(companyData) ? companyData : companyData.companies ?? (companyData.company ? [companyData.company] : [])
         : [];
+
+      // Filter companies by active drive state day/slot
+      if (driveDay != null || driveSlot) {
+        companies = companies.filter((c: any) => {
+          if (driveDay != null && c.day !== driveDay) return false;
+          if (driveSlot && c.slot !== driveSlot) return false;
+          return true;
+        });
+      }
+
       setProfileData({
         name: meData.name ?? meData.instituteId ?? "",
         userId: meData.instituteId ?? userId ?? "",

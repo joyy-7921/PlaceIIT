@@ -127,8 +127,13 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
+      // Pass drive state filters to backend so assignedCompanies is pre-filtered
+      const cocoParams: { day?: number; slot?: string } = {};
+      if (driveDay != null) cocoParams.day = driveDay;
+      if (driveSlot) cocoParams.slot = driveSlot;
+
       const [cocosData, companiesData]: any[] = await Promise.all([
-        adminApi.getCocos(),
+        adminApi.getCocos(Object.keys(cocoParams).length > 0 ? cocoParams : undefined),
         adminApi.getCompanies(),
       ]);
 
@@ -154,7 +159,7 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [driveDay, driveSlot]);
 
   useEffect(() => {
     fetchAll();
@@ -273,19 +278,27 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
     }
   };
 
+  // Helper: get companies matching the active drive day/slot
+  const isDriveMatch = (company: Company) => {
+    if (driveDay != null && company.day !== `Day ${driveDay}`) return false;
+    if (driveSlot && company.rawSlot !== driveSlot) return false;
+    return true;
+  };
+
   const getCoCoAssignments = (cocoId: string) =>
     assignments
       .filter((a) => a.cocoId === cocoId)
       .map((a) => companies.find((c) => c.id === a.companyId))
-      .filter((c): c is Company => c !== undefined);
+      .filter((c): c is Company => c !== undefined)
+      .filter(isDriveMatch);
 
   const getAssignmentCount = (cocoId: string) =>
-    assignments.filter((a) => a.cocoId === cocoId).length;
+    getCoCoAssignments(cocoId).length;
 
   const isCocoAssigned = (cocoId: string) =>
-    assignments.some((a) => a.cocoId === cocoId);
+    getAssignmentCount(cocoId) > 0;
 
-  // Get globally unassigned cocos (not assigned to ANY company)
+  // Get cocos unassigned within the current drive day/slot
   const getUnassignedCocos = () =>
     cocos.filter((c) => !isCocoAssigned(c.id));
 
