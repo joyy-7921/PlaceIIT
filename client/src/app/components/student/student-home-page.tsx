@@ -238,7 +238,9 @@ export function StudentHomePage() {
       case "pending": return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200"><Clock3 className="h-3 w-3 mr-1" />Requested</Badge>;
       case "in_queue":
       case "in-queue":
-      case "on_hold": return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><Users className="h-3 w-3 mr-1" />In Queue</Badge>;
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><Users className="h-3 w-3 mr-1" />In Queue</Badge>;
+      case "on_hold":
+        return <Badge className="bg-red-100 text-red-800 border-red-200"><Flag className="h-3 w-3 mr-1" />Flagged</Badge>;
       case "in_interview": return <Badge className="bg-orange-100 text-orange-800 border-orange-200"><Mic className="h-3 w-3 mr-1" />Interviewing</Badge>;
       case "completed":
       case "offer_given": return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle className="h-3 w-3 mr-1" />Completed</Badge>;
@@ -253,7 +255,9 @@ export function StudentHomePage() {
       case "pending": return "border-yellow-300 bg-yellow-50/40 shadow-sm";
       case "in_queue":
       case "in-queue":
-      case "on_hold": return "border-blue-300 bg-blue-50/40 shadow-sm";
+        return "border-blue-300 bg-blue-50/40 shadow-sm";
+      case "on_hold":
+        return "border-red-300 bg-red-50/40 shadow-sm";
       case "in_interview": return "border-orange-300 bg-orange-50/30 shadow-sm";
       case "completed":
       case "offer_given": return "border-green-300 bg-green-50/30 shadow-sm";
@@ -332,9 +336,17 @@ export function StudentHomePage() {
               )}
               {(s === "in_queue" || s === "in-queue" || s === "on_hold") && (
                 <div className="flex items-center gap-3">
-                  <div className="flex flex-col items-center bg-blue-50 border border-blue-200 rounded-md px-3 py-1 mr-2">
-                    <span className="text-[10px] uppercase font-bold text-blue-600 tracking-wider">Position</span>
-                    <span className="text-lg font-black text-blue-900 leading-none mt-0.5">
+                  <div className={`flex flex-col items-center rounded-md px-3 py-1 mr-2 ${
+                    s === "on_hold" ? "bg-red-50 border border-red-200" : "bg-blue-50 border border-blue-200"
+                  }`}>
+                    <span className={`text-[10px] uppercase font-bold tracking-wider ${
+                      s === "on_hold" ? "text-red-600" : "text-blue-600"
+                    }`}>
+                      {s === "on_hold" ? "Flagged" : "Position"}
+                    </span>
+                    <span className={`text-lg font-black leading-none mt-0.5 ${
+                      s === "on_hold" ? "text-red-900" : "text-blue-900"
+                    }`}>
                       {company.queuePosition ? `#${company.queuePosition}` : "—"}
                     </span>
                   </div>
@@ -394,7 +406,16 @@ export function StudentHomePage() {
   };
 
   const currentDay = driveDay ? `Day ${driveDay}` : (companies.length > 0 ? [...new Set(companies.map((c) => c.day))][0] : "Today");
-  const sortedCompanies = [...companies].sort((a, b) => a.priority - b.priority);
+  const slotOrder: Record<string, number> = { morning: 1, afternoon: 2 };
+  const sortedCompanies = [...companies].sort((a, b) => {
+    const dayA = parseInt(a.day.replace(/\D/g, "")) || 0;
+    const dayB = parseInt(b.day.replace(/\D/g, "")) || 0;
+    if (dayA !== dayB) return dayA - dayB;
+    const slotA = slotOrder[a.slot.toLowerCase()] ?? 99;
+    const slotB = slotOrder[b.slot.toLowerCase()] ?? 99;
+    if (slotA !== slotB) return slotA - slotB;
+    return a.priority - b.priority;
+  });
 
   // Filter by active drive state day/slot
   const activeCompanies = sortedCompanies.filter((c) => {

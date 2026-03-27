@@ -23,6 +23,8 @@ export function APCProfilePage({ userName, userId }: APCProfilePageProps) {
   const [name, setName] = useState(userName);
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [instituteId, setInstituteId] = useState(userName);
+  const [joinDate, setJoinDate] = useState("");
 
   // Password change data
   const [currentPassword, setCurrentPassword] = useState("");
@@ -38,6 +40,11 @@ export function APCProfilePage({ userName, userId }: APCProfilePageProps) {
       setName(data.name ?? data.instituteId ?? userName);
       setEmail(data.email ?? "");
       setPhone(data.phone ?? data.contact ?? "");
+      setInstituteId(data.instituteId ?? userName);
+      if (data.createdAt) {
+        const d = new Date(data.createdAt);
+        setJoinDate(d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }));
+      }
     } catch { /* keep defaults */ }
     finally { setLoadingProfile(false); }
   }, [userName]);
@@ -164,8 +171,8 @@ export function APCProfilePage({ userName, userId }: APCProfilePageProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>User ID</Label>
-                  <Input value={userId} disabled />
+                  <Label>Institute ID</Label>
+                  <Input value={instituteId} disabled />
                 </div>
 
                 <div className="space-y-2">
@@ -327,7 +334,7 @@ export function APCProfilePage({ userName, userId }: APCProfilePageProps) {
               <Separator />
               <div className="flex justify-between py-2">
                 <span className="text-gray-600">Member Since</span>
-                <span className="font-medium text-gray-900">January 2024</span>
+                <span className="font-medium text-gray-900">{joinDate || "N/A"}</span>
               </div>
             </CardContent>
           </Card>

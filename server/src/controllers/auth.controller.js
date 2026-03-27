@@ -1,6 +1,7 @@
 const User = require("../models/User.model");
 const Student = require("../models/Student.model");
 const Coordinator = require("../models/Coordinator.model");
+const Apc = require("../models/Apc.model");
 const { generateToken } = require("../utils/generateToken");
 const { ROLES } = require("../utils/constants");
 const { sendOtpEmail } = require("../services/email.service");
@@ -65,7 +66,7 @@ const getMe = async (req, res) => {
     let profile = null;
     if (user.role === ROLES.STUDENT) profile = await Student.findOne({ userId: user._id });
     else if (user.role === ROLES.COCO) profile = await Coordinator.findOne({ userId: user._id });
-    // APC profile could be added here if needed, but Student and Coordinator cover the main ones.
+    else if (user.role === ROLES.ADMIN) profile = await Apc.findOne({ userId: user._id });
 
     if (profile) {
       user.name = profile.name;
