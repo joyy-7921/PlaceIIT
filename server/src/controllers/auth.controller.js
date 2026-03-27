@@ -108,7 +108,7 @@ const register = async (req, res) => {
 // @access  Public
 const sendOtp = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, role } = req.body;
 
     if (!email) {
       return res.status(400).json({ message: "Email is required" });
@@ -117,6 +117,14 @@ const sendOtp = async (req, res) => {
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
       return res.status(404).json({ message: "No account found with this email address" });
+    }
+
+    // Validate role: map frontend 'apc' to backend 'admin'
+    if (role) {
+      const mappedRole = role === 'apc' ? ROLES.ADMIN : role;
+      if (user.role !== mappedRole) {
+        return res.status(404).json({ message: "No account found with this email address" });
+      }
     }
 
     if (!user.isActive) {
@@ -144,7 +152,7 @@ const sendOtp = async (req, res) => {
 // @access  Public
 const verifyOtp = async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    const { email, otp, role } = req.body;
 
     if (!email || !otp) {
       return res.status(400).json({ message: "Email and OTP are required" });
@@ -153,6 +161,14 @@ const verifyOtp = async (req, res) => {
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user || !user.otpCode) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
+    }
+
+    // Validate role: map frontend 'apc' to backend 'admin'
+    if (role) {
+      const mappedRole = role === 'apc' ? ROLES.ADMIN : role;
+      if (user.role !== mappedRole) {
+        return res.status(400).json({ message: "Invalid or expired OTP" });
+      }
     }
 
     if (user.otpExpiry < new Date()) {
@@ -174,7 +190,7 @@ const verifyOtp = async (req, res) => {
 // @access  Public
 const resetPassword = async (req, res) => {
   try {
-    const { email, otp, newPassword } = req.body;
+    const { email, otp, newPassword, role } = req.body;
 
     if (!email || !otp || !newPassword) {
       return res.status(400).json({ message: "Email, OTP and new password are required" });
@@ -187,6 +203,14 @@ const resetPassword = async (req, res) => {
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user || !user.otpCode) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
+    }
+
+    // Validate role: map frontend 'apc' to backend 'admin'
+    if (role) {
+      const mappedRole = role === 'apc' ? ROLES.ADMIN : role;
+      if (user.role !== mappedRole) {
+        return res.status(400).json({ message: "Invalid or expired OTP" });
+      }
     }
 
     if (user.otpExpiry < new Date()) {
@@ -216,7 +240,7 @@ const changePassword = async (req, res) => {
   try {
     const { newPassword, currentPassword, emergencyContact, friendContact } = req.body;
 
-    if (!newPassword || newPassword.length < 6) {
+    if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6) {
       return res.status(400).json({ message: "Password must be at least 6 characters" });
     }
 
@@ -225,38 +249,49 @@ const changePassword = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (user.role === ROLES.STUDENT && emergencyContact && friendContact) {
+    if (user.role === ROLES.STUDENT && emergencyContact) {
       const emergencyName = emergencyContact?.name?.trim();
       const emergencyPhone = emergencyContact?.phone?.trim();
-      const friendName = friendContact?.name?.trim();
-      const friendPhone = friendContact?.phone?.trim();
 
-      if (!emergencyName || !emergencyPhone || !friendName || !friendPhone) {
-        return res.status(400).json({ message: "Emergency and friend contact details are required" });
+      if (!emergencyName || !emergencyPhone) {
+        return res.status(400).json({ message: "Emergency contact name and phone are required" });
       }
 
-      if (!/^\d{10}$/.test(emergencyPhone) || !/^\d{10}$/.test(friendPhone)) {
-        return res.status(400).json({ message: "Contact phone numbers must be exactly 10 digits" });
+      if (!/^\d{10}$/.test(emergencyPhone)) {
+        return res.status(400).json({ message: "Emergency contact phone must be exactly 10 digits" });
+      }
+
+      const updateData = {
+        emergencyContact: {
+          name: emergencyName,
+          phone: emergencyPhone,
+        },
+        profileCompleted: true,
+      };
+
+      // Friend contact is optional — only save if provided
+      if (friendContact && friendContact.name?.trim() && friendContact.phone?.trim()) {
+        const friendPhone = friendContact.phone.trim();
+        if (!/^\d{10}$/.test(friendPhone)) {
+          return res.status(400).json({ message: "Friend contact phone must be exactly 10 digits" });
+        }
+        updateData.friendContact = {
+          name: friendContact.name.trim(),
+          phone: friendPhone,
+        };
       }
 
       await Student.findOneAndUpdate(
         { userId: user._id },
-        {
-          emergencyContact: {
-            name: emergencyName,
-            phone: emergencyPhone,
-          },
-          friendContact: {
-            name: friendName,
-            phone: friendPhone,
-          },
-          profileCompleted: true,
-        }
+        updateData
       );
     }
 
     // If currentPassword is provided, verify it (profile change flow)
     if (currentPassword) {
+      if (typeof currentPassword !== "string") {
+        return res.status(400).json({ message: "Invalid current password format" });
+      }
       const isMatch = await user.comparePassword(currentPassword);
       if (!isMatch) {
         return res.status(401).json({ message: "Current password is incorrect" });

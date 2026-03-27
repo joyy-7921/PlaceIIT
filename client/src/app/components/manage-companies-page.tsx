@@ -31,6 +31,8 @@ interface Company {
   venue: string;
   day: string;
   slot: string;
+  rawSlot: string;
+  rawDay: number | null;
   shortlistedCount: number;
 }
 
@@ -42,6 +44,10 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Drive state for filtering
+  const [driveDay, setDriveDay] = useState<number | null>(null);
+  const [driveSlot, setDriveSlot] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterDay, setFilterDay] = useState("all");
@@ -64,32 +70,52 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
   const [selectedStudentsForShortlist, setSelectedStudentsForShortlist] = useState<any[]>([]);
   const [isSearchingStudents, setIsSearchingStudents] = useState(false);
 
-  const normalizeCompany = (raw: any): Company => ({
-    id: raw._id ?? raw.id ?? "",
-    name: raw.name ?? "—",
-    cocoAssigned: raw.assignedCocos?.length
+  const normalizeCompany = (raw: any, activeDriveDay: number | null, activeDriveSlot: string | null): Company => {
+    // Filter assignedCocos: only show if this company matches the active drive state
+    const companyDay = raw.day;
+    const companySlot = raw.slot;
+    const matchesDrive = (activeDriveDay == null || companyDay === activeDriveDay) &&
+                         (!activeDriveSlot || companySlot === activeDriveSlot);
+
+    const cocoAssigned = matchesDrive && raw.assignedCocos?.length
       ? raw.assignedCocos.map((c: any) => {
-        const idStr = c.userId?.instituteId ? ` (${c.userId.instituteId})` : "";
-        return `${c.name ?? c}${idStr}`;
-      }).join(", ")
-      : "Not Assigned",
-    venue: raw.venue ?? "Not Assigned",
-    day: raw.day != null ? `Day ${raw.day}` : "—",
-    slot: raw.slot ? raw.slot.charAt(0).toUpperCase() + raw.slot.slice(1) : "—",
-    shortlistedCount: raw.shortlistedStudents?.length ?? raw.shortlistedCount ?? 0,
-  });
+          const idStr = c.userId?.instituteId ? ` (${c.userId.instituteId})` : "";
+          return `${c.name ?? c}${idStr}`;
+        }).join(", ")
+      : "Not Assigned";
+
+    return {
+      id: raw._id ?? raw.id ?? "",
+      name: raw.name ?? "—",
+      cocoAssigned,
+      venue: raw.venue ?? "Not Assigned",
+      day: raw.day != null ? `Day ${raw.day}` : "—",
+      slot: raw.slot ? raw.slot.charAt(0).toUpperCase() + raw.slot.slice(1) : "—",
+      rawSlot: raw.slot ?? "",
+      rawDay: raw.day ?? null,
+      shortlistedCount: raw.shortlistedStudents?.length ?? raw.shortlistedCount ?? 0,
+    };
+  };
 
   const fetchCompanies = useCallback(async () => {
     setLoading(true);
     try {
       const data: any = await adminApi.getCompanies();
       const list = Array.isArray(data) ? data : data.companies ?? [];
-      setCompanies(list.map(normalizeCompany));
+      setCompanies(list.map((raw: any) => normalizeCompany(raw, driveDay, driveSlot)));
     } catch (err: any) {
       toast.error("Failed to load companies: " + (err.message ?? "Unknown error"));
     } finally {
       setLoading(false);
     }
+  }, [driveDay, driveSlot]);
+
+  // Fetch drive state first
+  useEffect(() => {
+    adminApi.getDriveState().then((data: any) => {
+      setDriveDay(data.currentDay ?? null);
+      setDriveSlot(data.currentSlot ?? null);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {

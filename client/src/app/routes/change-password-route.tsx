@@ -30,26 +30,30 @@ export function ChangePasswordRoute() {
       toast.error("Passwords do not match.");
       return;
     }
-    if (!emergencyContactName.trim() || !emergencyContactPhone.trim() || !friendContactName.trim() || !friendContactPhone.trim()) {
-      toast.error("All contact fields are required.");
+    if (!emergencyContactName.trim() || !emergencyContactPhone.trim()) {
+      toast.error("Emergency contact fields are required.");
       return;
     }
-    if (!/^\d{10}$/.test(emergencyContactPhone.trim()) || !/^\d{10}$/.test(friendContactPhone.trim())) {
-      toast.error("Contact phone numbers must be exactly 10 digits.");
+    if (!/^\d{10}$/.test(emergencyContactPhone.trim())) {
+      toast.error("Emergency contact phone number must be exactly 10 digits.");
+      return;
+    }
+    if (friendContactPhone.trim() && !/^\d{10}$/.test(friendContactPhone.trim())) {
+      toast.error("Friend contact phone number must be exactly 10 digits.");
       return;
     }
 
     setLoading(true);
     try {
-      const res = await authApi.changePassword(newPassword, {
+      const res = await authApi.changePassword(newPassword, undefined, {
         emergencyContact: {
           name: emergencyContactName.trim(),
           phone: emergencyContactPhone.trim(),
         },
-        friendContact: {
+        friendContact: friendContactName.trim() && friendContactPhone.trim() ? {
           name: friendContactName.trim(),
           phone: friendContactPhone.trim(),
-        },
+        } : undefined as any,
       });
       // Update local storage / context if necessary, or just force them to log in again
       if (res.user) {
@@ -146,7 +150,7 @@ export function ChangePasswordRoute() {
                   value={friendContactName}
                   onChange={(e) => setFriendContactName(e.target.value)}
                   placeholder="Friend contact name"
-                  required
+
                 />
               </div>
 
@@ -158,7 +162,7 @@ export function ChangePasswordRoute() {
                   onChange={(e) => setFriendContactPhone(e.target.value)}
                   placeholder="10-digit phone number"
                   inputMode="numeric"
-                  required
+
                 />
               </div>
 

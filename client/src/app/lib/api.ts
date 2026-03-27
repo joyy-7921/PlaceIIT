@@ -1,6 +1,6 @@
 /**
  * API Service Layer — centralised HTTP client for the PlaceIIT backend.
- * All requests go through the Vite proxy (/api → http://localhost:5001/api).
+ * All requests go through the Vite proxy (/api → http://localhost:5000/api).
  */
 
 const API_BASE = "/api";
@@ -101,22 +101,22 @@ export const authApi = {
         }),
 
     forgotPassword: {
-        sendOtp: (email: string) =>
+        sendOtp: (email: string, role?: string) =>
             request<{ message: string }>("/auth/forgot-password/send-otp", {
                 method: "POST",
-                body: JSON.stringify({ email }),
+                body: JSON.stringify({ email, role }),
             }),
 
-        verifyOtp: (email: string, otp: string) =>
+        verifyOtp: (email: string, otp: string, role?: string) =>
             request<{ message: string }>("/auth/forgot-password/verify-otp", {
                 method: "POST",
-                body: JSON.stringify({ email, otp }),
+                body: JSON.stringify({ email, otp, role }),
             }),
 
-        resetPassword: (email: string, otp: string, newPassword: string) =>
+        resetPassword: (email: string, otp: string, newPassword: string, role?: string) =>
             request<{ message: string }>("/auth/forgot-password/reset", {
                 method: "POST",
-                body: JSON.stringify({ email, otp, newPassword }),
+                body: JSON.stringify({ email, otp, newPassword, role }),
             }),
     },
 };
@@ -259,7 +259,13 @@ export const adminApi = {
         request(`/admin/companies/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     searchStudents: (query: string) =>
         request(`/admin/students/search?q=${encodeURIComponent(query)}`),
-    getCocos: () => request("/admin/cocos"),
+    getCocos: (params?: { day?: number; slot?: string }) => {
+        const queryParts: string[] = [];
+        if (params?.day != null) queryParts.push(`day=${params.day}`);
+        if (params?.slot) queryParts.push(`slot=${encodeURIComponent(params.slot)}`);
+        const qs = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+        return request(`/admin/cocos${qs}`);
+    },
     /** Add a new CoCo directly (name, email, rollNumber, contact) */
     addCoco: (data: Record<string, unknown>) =>
         request("/admin/cocos", { method: "POST", body: JSON.stringify(data) }),
