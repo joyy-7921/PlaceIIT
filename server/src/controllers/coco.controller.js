@@ -718,7 +718,7 @@ const getCocoNotifications = async (req, res) => {
   try {
     const notifications = await Notification.find({
       recipientId: req.user.id,
-      source: { $in: ["student", "apc", "coco", "system"] }
+      source: { $in: ["apc", "coco", "system"] }
     })
       .populate("senderId", "name rollNumber")
       .populate("companyId", "name")
@@ -752,7 +752,7 @@ const clearAllNotifications = async (req, res) => {
   try {
     await Notification.deleteMany({
       recipientId: req.user.id,
-      source: { $in: ["student", "apc", "coco", "system"] }
+      source: { $in: ["apc", "coco", "system"] }
     });
     res.json({ message: "Notifications cleared" });
   } catch (err) {
