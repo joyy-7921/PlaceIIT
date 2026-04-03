@@ -48,7 +48,7 @@ export function CoCoNotificationsPage() {
     try {
       const data: any = await cocoApi.getNotifications();
       const list = Array.isArray(data) ? data : data.notifications ?? [];
-      setNotifications(list.map(normalizeNotif));
+      setNotifications(list.map(normalizeNotif).filter(n => n.source !== "student"));
     } catch {
       setNotifications([]);
     } finally {
@@ -63,7 +63,9 @@ export function CoCoNotificationsPage() {
     if (!socket) return;
     const handleNewNotif = (raw: any) => {
       const notif = normalizeNotif(raw);
-      setNotifications((prev) => [notif, ...prev]);
+      if (notif.source !== "student") {
+        setNotifications((prev) => [notif, ...prev]);
+      }
     };
     socket.on("notification:sent", handleNewNotif);
     return () => { socket.off("notification:sent", handleNewNotif); };
@@ -157,7 +159,12 @@ export function CoCoNotificationsPage() {
       (n.company && n.company.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (n.senderName && n.senderName.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (n.senderRoll && n.senderRoll.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesFilter = selectedFilter === "all" || n.source === selectedFilter;
+
+    let matchesFilter = false;
+    if (selectedFilter === "all") matchesFilter = true;
+    else if (selectedFilter === "apc" && n.source === "apc") matchesFilter = true;
+    else if (selectedFilter === "general" && n.source !== "apc") matchesFilter = true;
+
     return matchesSearch && matchesFilter;
   });
 
@@ -204,7 +211,7 @@ export function CoCoNotificationsPage() {
           <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Filter by source" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Sources</SelectItem>
-            <SelectItem value="student">Student</SelectItem>
+            <SelectItem value="general">General</SelectItem>
             <SelectItem value="apc">APC / Admin</SelectItem>
           </SelectContent>
         </Select>
