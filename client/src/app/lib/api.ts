@@ -316,6 +316,8 @@ export const adminApi = {
     getDriveState: () => request("/admin/drive-state"),
     updateDriveState: (data: { day: number; slot: string }) =>
         request("/admin/drive-state", { method: "PUT", body: JSON.stringify(data) }),
+    updateProfile: (data: { name?: string; phone?: string }) =>
+        request("/admin/profile", { method: "PUT", body: JSON.stringify(data) }),
     sendBroadcastNotification: (data: { message: string; type: string; audience: string }) =>
         request("/admin/broadcast-notification", { method: "POST", body: JSON.stringify(data) }),
     getNotifications: () => request("/admin/notifications"),

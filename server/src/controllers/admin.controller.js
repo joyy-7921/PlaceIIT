@@ -975,6 +975,23 @@ const clearAllApcNotifications = async (req, res) => {
   }
 };
 
+// @desc    Update APC profile (name, phone)
+// @route   PUT /api/admin/profile
+const updateApcProfile = async (req, res) => {
+  try {
+    const { name, phone } = req.body;
+    const updated = await Apc.findOneAndUpdate(
+      { userId: req.user.id },
+      { ...(name !== undefined && { name }), ...(phone !== undefined && { contact: phone }) },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ message: "APC profile not found" });
+    res.json({ message: "Profile updated", apc: updated });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getStats, getCompanies, addCompany, updateCompany,
   searchStudents, getStudentCompanies, getCocos, addCoco, addStudent, getApcs, addApc, removeApc,
@@ -983,5 +1000,6 @@ module.exports = {
   shortlistStudents, getShortlistedStudents, autoAllocateCocos, getCocoConflicts,
   getQueries, respondToQuery,
   getDriveState, updateDriveState, sendBroadcastNotification,
-  getApcNotifications, markApcNotifRead, clearAllApcNotifications
+  getApcNotifications, markApcNotifRead, clearAllApcNotifications,
+  updateApcProfile
 };

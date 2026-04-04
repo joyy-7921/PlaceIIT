@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app
 import { Separator } from "@/app/components/ui/separator";
 import { User, Mail, Phone, Lock, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
-import { authApi } from "@/app/lib/api";
+import { authApi, adminApi } from "@/app/lib/api";
 import { toast } from "sonner";
 
 interface APCProfilePageProps {
@@ -55,9 +55,14 @@ export function APCProfilePage({ userName, userId }: APCProfilePageProps) {
     window.scrollTo(0, 0);
   }, []);
 
-  const handleSaveProfile = () => {
-    toast.success("Profile updated successfully!");
-    setIsEditingProfile(false);
+  const handleSaveProfile = async () => {
+    try {
+      await adminApi.updateProfile({ name, phone });
+      toast.success("Profile updated successfully!");
+      setIsEditingProfile(false);
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to save profile");
+    }
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {

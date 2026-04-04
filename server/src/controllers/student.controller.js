@@ -28,18 +28,14 @@ const getProfile = async (req, res) => {
 // @route   PUT /api/student/profile
 const updateProfile = async (req, res) => {
   try {
-    const { contact, emergencyContact, friendContact, branch, batch, email } = req.body;
+    const { name, contact, emergencyContact, friendContact, branch, batch } = req.body;
     await Student.findOneAndUpdate(
       { userId: req.user.id },
-      { contact, emergencyContact, friendContact, branch, batch, profileCompleted: true },
+      { ...(name !== undefined && { name }), contact, emergencyContact, friendContact, branch, batch, profileCompleted: true },
       { new: true }
     );
-    // Update email on User model if provided
-    if (email) {
-      await User.findByIdAndUpdate(req.user.id, { email });
-    }
 
-    // Fetch and return the fully populated object so frontend has the updated email
+    // Fetch and return the fully populated object
     const updatedStudent = await Student.findOne({ userId: req.user.id })
       .populate("userId", "email")
       .populate("shortlistedCompanies", "name logo day slot venue mode currentRound");
