@@ -11,7 +11,7 @@ const {
   getCocoNotifications, markNotifRead, clearAllNotifications, addStudentToCompany,
   promoteStudentsViaExcel,
   getPendingRequests, acceptStudent, rejectStudent, markCompleted,
-  updateCompanyVenue,
+  updateCompanyVenue, updateCocoProfile,
 } = require("../controllers/coco.controller");
 const { getStudentCompanies, getDriveState } = require("../controllers/admin.controller");
 const { protect } = require("../middlewares/auth.middleware");
@@ -19,6 +19,7 @@ const { authorize } = require("../middlewares/role.middleware");
 
 router.use(protect, authorize("coco"));
 
+router.put("/profile", updateCocoProfile);
 router.get("/company", getAssignedCompany);
 router.get("/company/:companyId/students", getShortlistedStudents);
 router.get("/company/:companyId/rounds", getRounds);

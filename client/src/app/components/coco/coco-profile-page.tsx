@@ -82,8 +82,8 @@ export function CoCoProfilePage({ userId }: { userId: string }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // No dedicated coco profile update endpoint yet — just show success
-      toast.success("Profile saved");
+      await cocoApi.updateProfile({ name: profileData.name, contact: profileData.phone });
+      toast.success("Profile saved successfully!");
       setIsEditing(false);
     } catch (err: any) {
       toast.error(err.message ?? "Save failed");

@@ -1030,6 +1030,21 @@ const updateCompanyVenue = async (req, res) => {
   }
 };
 
+const updateCocoProfile = async (req, res) => {
+  try {
+    const { name, contact } = req.body;
+    const updated = await Coordinator.findOneAndUpdate(
+      { userId: req.user.id },
+      { ...(name !== undefined && { name }), ...(contact !== undefined && { contact }) },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ message: "Coordinator not found" });
+    res.json({ message: "Profile updated", coordinator: updated });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getAssignedCompany, getShortlistedStudents, addStudentToQueue,
   updateStudentStatus, sendNotification, toggleWalkIn,
@@ -1039,5 +1054,5 @@ module.exports = {
   getCocoNotifications, markNotifRead, clearAllNotifications, addStudentToCompany,
   promoteStudentsViaExcel,
   getPendingRequests, acceptStudent, rejectStudent, markCompleted,
-  updateCompanyVenue,
+  updateCompanyVenue, updateCocoProfile,
 };

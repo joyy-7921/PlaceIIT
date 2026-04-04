@@ -72,7 +72,6 @@ export function StudentProfilePage({ rollNo }: { rollNo: string }) {
       await studentApi.updateProfile({
         name: profileData.name,
         contact: profileData.phone,
-        email: profileData.email,
         emergencyContact: {
           name: profileData.emergencyContactName,
           phone: profileData.emergencyContactPhone,
@@ -140,7 +139,7 @@ export function StudentProfilePage({ rollNo }: { rollNo: string }) {
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="email" className="flex items-center"><Mail className="h-4 w-4 mr-2" />Email</Label>
-              <Input id="email" type="email" value={profileData.email} onChange={set("email")} disabled={!isEditing} />
+              <Input id="email" type="email" value={profileData.email} disabled className="bg-gray-50" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone" className="flex items-center"><Phone className="h-4 w-4 mr-2" />Phone Number</Label>

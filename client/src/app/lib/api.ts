@@ -198,6 +198,8 @@ export const cocoApi = {
         request("/coco/queue/add", { method: "POST", body: JSON.stringify(data) }),
     updateStudentStatus: (data: { studentId: string; companyId: string; status: string; round?: string }) =>
         request("/coco/queue/status", { method: "PUT", body: JSON.stringify(data) }),
+    updateProfile: (data: { name?: string; contact?: string }) =>
+        request("/coco/profile", { method: "PUT", body: JSON.stringify(data) }),
     sendNotification: (data: { studentUserId: string; companyId?: string; message: string }) =>
         request("/coco/notify", { method: "POST", body: JSON.stringify(data) }),
     getPredefinedNotifications: () =>

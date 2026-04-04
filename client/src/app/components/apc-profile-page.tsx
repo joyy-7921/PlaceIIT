@@ -149,9 +149,8 @@ export function APCProfilePage({ userName, userId }: APCProfilePageProps) {
                       id="email"
                       type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={!isEditingProfile}
-                      className="pl-10"
+                      disabled
+                      className="pl-10 bg-gray-50"
                     />
                   </div>
                 </div>
@@ -218,7 +217,6 @@ export function APCProfilePage({ userName, userId }: APCProfilePageProps) {
                     </div>
                     <div>
                       <p className="font-medium text-gray-900">Password</p>
-                      <p className="text-sm text-gray-500">Last changed 30 days ago</p>
                     </div>
                   </div>
                   <Button
