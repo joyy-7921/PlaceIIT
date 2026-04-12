@@ -8,6 +8,7 @@ const {
   uploadStudentExcel,
   uploadCocoRequirementsExcel, getUploadStatus, getStudentCompanies,
   shortlistStudents, getShortlistedStudents, autoAllocateCocos, getCocoConflicts, addApc, getApcs, removeApc, uploadApcExcel,
+  deleteCoco,
   getQueries, respondToQuery,
   getDriveState, updateDriveState, sendBroadcastNotification,
   getApcNotifications, markApcNotifRead, clearAllApcNotifications,
@@ -33,6 +34,7 @@ router.get("/cocos", getCocos);
 router.post("/cocos", addCoco);
 router.post("/assign-coco", assignCoco);
 router.post("/remove-coco", removeCoco);
+router.delete("/cocos/:id", deleteCoco);
 router.get("/apcs", getApcs);
 router.post("/remove-apc", removeApc);
 router.post("/upload/companies", protect, authorize("admin"), upload.single("file"), uploadCompanyExcel);

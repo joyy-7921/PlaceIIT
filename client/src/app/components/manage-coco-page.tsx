@@ -248,11 +248,7 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
 
   const handleRemoveCoCo = async (id: string) => {
     try {
-      // Remove all assignments first
-      const cocoAssignments = assignments.filter((a) => a.cocoId === id);
-      for (const a of cocoAssignments) {
-        await adminApi.removeCoco({ cocoId: id, companyId: a.companyId }).catch(() => null);
-      }
+      await adminApi.deleteCoco(id);
       setCocos((prev) => prev.filter((c) => c.id !== id));
       setAssignments((prev) => prev.filter((a) => a.cocoId !== id));
       toast.success("CoCo removed");

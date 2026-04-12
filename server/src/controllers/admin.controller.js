@@ -426,6 +426,33 @@ const removeCoco = async (req, res) => {
   }
 };
 
+// @desc    Permanently delete a CoCo (coordinator + user account)
+// @route   DELETE /api/admin/cocos/:id
+const deleteCoco = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const coco = await Coordinator.findById(id);
+    if (!coco) return res.status(404).json({ message: "CoCo not found" });
+
+    // Remove this coco from all assigned companies
+    if (coco.assignedCompanies?.length > 0) {
+      await Company.updateMany(
+        { _id: { $in: coco.assignedCompanies } },
+        { $pull: { assignedCocos: coco._id } }
+      );
+    }
+
+    // Delete the coordinator record and the user account
+    await Coordinator.findByIdAndDelete(id);
+    await User.findByIdAndDelete(coco.userId);
+
+    await emitStatsUpdate();
+    res.json({ message: "CoCo deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // @desc    Upload Excel - company info
 // @route   POST /api/admin/upload/companies
 const uploadCompanyExcel = async (req, res) => {
@@ -1074,7 +1101,7 @@ const updateApcProfile = async (req, res) => {
 module.exports = {
   getStats, getCompanies, addCompany, updateCompany,
   searchStudents, getStudentCompanies, getCocos, addCoco, addStudent, getApcs, addApc, removeApc,
-  assignCoco, removeCoco,
+  assignCoco, removeCoco, deleteCoco,
   uploadCompanyExcel, uploadShortlistExcel, uploadCocoExcel, uploadApcExcel, uploadStudentExcel, uploadCocoRequirementsExcel, getUploadStatus,
   shortlistStudents, getShortlistedStudents, autoAllocateCocos, getCocoConflicts,
   getQueries, respondToQuery,
