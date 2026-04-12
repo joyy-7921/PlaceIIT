@@ -187,8 +187,8 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
 
   const handleVenueBlur = async (company: Company) => {
     try {
-      if (company.venue === "") {
-        toast.error("Company venue cannot be empty");
+      if (!company.venue.trim()) {
+        toast.error("Company venue cannot be empty or just spaces");
         await fetchCompanies();
         return;
       }
@@ -198,7 +198,7 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
         await fetchCompanies();
         return;
       }
-      await adminApi.updateCompany(company.id, { venue: company.venue });
+      await adminApi.updateCompany(company.id, { venue: company.venue.trim() });
     } catch (err: any) {
       toast.error("Failed to save venue: " + (err.message ?? ""));
       await fetchCompanies();

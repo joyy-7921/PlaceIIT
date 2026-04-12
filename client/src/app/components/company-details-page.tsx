@@ -231,9 +231,18 @@ export function CompanyDetailsPage({
               className="bg-indigo-600 hover:bg-indigo-700"
               disabled={saving}
               onClick={async () => {
+                if (!editableVenue.trim()) {
+                  toast.error("Company venue cannot be empty or just spaces");
+                  return;
+                }
+                const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
+                if (emojiRegex.test(editableVenue)) {
+                  toast.error("Company venue cannot contain emojis");
+                  return;
+                }
                 setSaving(true);
                 try {
-                  await adminApi.updateCompany(companyId, { name: editableName, venue: editableVenue });
+                  await adminApi.updateCompany(companyId, { name: editableName, venue: editableVenue.trim() });
 
                   toast.success("Company updated successfully!");
                 } catch (err: any) {

@@ -89,11 +89,16 @@ const addCompany = async (req, res) => {
 const updateCompany = async (req, res) => {
   try {
     const { name, venue } = req.body;
+    if (venue !== undefined && !venue.trim()) {
+      return res.status(400).json({ message: "Company venue cannot be empty or just spaces" });
+    }
     const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
     if ((name && emojiRegex.test(name)) || (venue && emojiRegex.test(venue))) {
       return res.status(400).json({ message: "Company name and venue cannot contain emojis" });
     }
-    const company = await Company.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updateData = { ...req.body };
+    if (venue !== undefined) updateData.venue = venue.trim();
+    const company = await Company.findByIdAndUpdate(req.params.id, updateData, { new: true });
     res.json(company);
   } catch (err) {
     res.status(500).json({ message: err.message });
