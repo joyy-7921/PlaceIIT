@@ -154,20 +154,6 @@ export function CoCoProfilePage({ userId }: { userId: string }) {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="flex items-center"><Building2 className="h-5 w-5 mr-2 text-gray-600" />Coordinator Statistics</CardTitle></CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Companies Assigned</span>
-                <Badge className="bg-green-600 text-white">{profileData.companiesAssigned}</Badge>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
         <CardHeader><CardTitle className="flex items-center"><Building2 className="h-5 w-5 mr-2 text-gray-600" />Currently Assigned Companies</CardTitle></CardHeader>
         <CardContent>
           {assignedCompanies.length === 0 ? (

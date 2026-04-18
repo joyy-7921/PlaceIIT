@@ -72,18 +72,36 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
   const [isSearchingStudents, setIsSearchingStudents] = useState(false);
 
   const normalizeCompany = (raw: any, activeDriveDay: number | null, activeDriveSlot: string | null): Company => {
-    // Filter assignedCocos: only show if this company matches the active drive state
     const companyDay = raw.day;
-    const companySlot = raw.slot;
+    const companySlot = raw.slot; // "morning" or "afternoon"
     const matchesDrive = (activeDriveDay == null || companyDay === activeDriveDay) &&
       (!activeDriveSlot || companySlot === activeDriveSlot);
 
-    const cocoAssigned = matchesDrive && raw.assignedCocos?.length
-      ? raw.assignedCocos.map((c: any) => {
-        const idStr = c.userId?.instituteId ? ` (${c.userId.instituteId})` : "";
-        return `${c.name ?? c}${idStr}`;
-      }).join(", ")
-      : "Not Assigned";
+    // Determine slot status relative to the current drive state
+    const slotRank = (s: string | null) => (s === "morning" ? 1 : s === "afternoon" ? 2 : 0);
+
+    let cocoAssigned: string;
+    if (matchesDrive) {
+      // Current active slot — show actual CoCo assignment
+      cocoAssigned = raw.assignedCocos?.length
+        ? raw.assignedCocos.map((c: any) => {
+          const idStr = c.userId?.instituteId ? ` (${c.userId.instituteId})` : "";
+          return `${c.name ?? c}${idStr}`;
+        }).join(", ")
+        : "Not Assigned";
+    } else if (activeDriveDay != null && companyDay != null && activeDriveSlot) {
+      // Compare to decide completed vs upcoming
+      if (
+        companyDay < activeDriveDay ||
+        (companyDay === activeDriveDay && slotRank(companySlot) < slotRank(activeDriveSlot))
+      ) {
+        cocoAssigned = "Completed";
+      } else {
+        cocoAssigned = "Upcoming";
+      }
+    } else {
+      cocoAssigned = "Not Assigned";
+    }
 
     return {
       id: raw._id ?? raw.id ?? "",
@@ -482,7 +500,11 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
                     <UserCog className="h-5 w-5 text-indigo-600 mt-0.5" />
                     <div className="flex-1">
                       <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">CoCo Assigned</div>
-                      <div className="font-semibold text-gray-900">{company.cocoAssigned}</div>
+                      <div className={`font-semibold ${
+                        company.cocoAssigned === "Completed" ? "text-green-600" :
+                        company.cocoAssigned === "Upcoming" ? "text-blue-600" :
+                        "text-gray-900"
+                      }`}>{company.cocoAssigned}</div>
                     </div>
                   </div>
                   <div className="flex items-start gap-3 bg-gray-50 p-4 rounded-lg">
