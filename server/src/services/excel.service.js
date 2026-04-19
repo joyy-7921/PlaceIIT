@@ -154,6 +154,16 @@ const processShortlistExcel = async (uploadId, filePath, companyId) => {
       await queueService.ensureShortlistedStudentInQueue(student._id, companyId);
       existingIds.add(student._id.toString());
       successCount++;
+
+      const { sendNotification } = require("./notification.service");
+      await sendNotification({
+        recipientId: student.userId,
+        senderModel: "User",
+        source: "apc",
+        companyId: companyId,
+        message: `You have been shortlisted for ${company.name}`,
+        type: "general"
+      }).catch(err => console.error("Notification failed:", err));
     }
 
     await ExcelUpload.findByIdAndUpdate(uploadId, {
@@ -255,6 +265,13 @@ const processStudentExcel = async (uploadId, filePath) => {
       const exist = await User.findOne({ $or: [{ instituteId }, { email }] });
       if (exist) {
         problemList.push(`Row ${i + 2}: User with Roll ${roll} or Email ${email} already exists`);
+        continue;
+      }
+
+      // Check if phone number is already used by another student
+      const existingPhone = await Student.findOne({ phone: String(phone).trim() });
+      if (existingPhone) {
+        problemList.push(`Row ${i + 2}: A student with phone number ${phone} already exists`);
         continue;
       }
 

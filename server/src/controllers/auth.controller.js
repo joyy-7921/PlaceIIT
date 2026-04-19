@@ -200,6 +200,10 @@ const resetPassword = async (req, res) => {
     if (newPassword.length < 6) {
       return res.status(400).json({ message: "Password must be at least 6 characters" });
     }
+    const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
+    if (emojiRegex.test(newPassword)) {
+      return res.status(400).json({ message: "Password cannot contain emojis" });
+    }
 
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user || !user.otpCode) {
@@ -243,6 +247,10 @@ const changePassword = async (req, res) => {
 
     if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6) {
       return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
+    const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
+    if (emojiRegex.test(newPassword)) {
+      return res.status(400).json({ message: "Password cannot contain emojis" });
     }
 
     const user = await User.findById(req.user.id);

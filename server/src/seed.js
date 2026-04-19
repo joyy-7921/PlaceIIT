@@ -11,7 +11,7 @@ const { MONGO_URI } = require("./config/env");
 const seedUsers = [
     {
         instituteId: "admin001",
-        email: "admin@placeiit.in",
+        email: "placeiitk@gmail.com",
         password: "admin123",
         role: "admin",
     },

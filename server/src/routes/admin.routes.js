@@ -4,13 +4,15 @@ const {
   getStats, getCompanies, addCompany, updateCompany,
   searchStudents, getCocos, addCoco, addStudent,
   assignCoco, removeCoco,
-  uploadCompanyExcel, uploadShortlistExcel,  uploadCocoExcel,
+  uploadCompanyExcel, uploadShortlistExcel, uploadCocoExcel,
   uploadStudentExcel,
   uploadCocoRequirementsExcel, getUploadStatus, getStudentCompanies,
   shortlistStudents, getShortlistedStudents, autoAllocateCocos, getCocoConflicts, addApc, getApcs, removeApc, uploadApcExcel,
+  deleteCoco,
   getQueries, respondToQuery,
   getDriveState, updateDriveState, sendBroadcastNotification,
-  getApcNotifications, markApcNotifRead, clearAllApcNotifications
+  getApcNotifications, markApcNotifRead, clearAllApcNotifications,
+  updateApcProfile
 } = require("../controllers/admin.controller");
 const { protect } = require("../middlewares/auth.middleware");
 const { authorize } = require("../middlewares/role.middleware");
@@ -32,6 +34,7 @@ router.get("/cocos", getCocos);
 router.post("/cocos", addCoco);
 router.post("/assign-coco", assignCoco);
 router.post("/remove-coco", removeCoco);
+router.delete("/cocos/:id", deleteCoco);
 router.get("/apcs", getApcs);
 router.post("/remove-apc", removeApc);
 router.post("/upload/companies", protect, authorize("admin"), upload.single("file"), uploadCompanyExcel);
@@ -51,5 +54,6 @@ router.post("/broadcast-notification", sendBroadcastNotification);
 router.get("/notifications", getApcNotifications);
 router.put("/notifications/:id/read", markApcNotifRead);
 router.delete("/notifications", clearAllApcNotifications);
+router.put("/profile", updateApcProfile);
 
 module.exports = router;

@@ -510,9 +510,10 @@ const addStudentToRound = async (req, res) => {
       resolvedRoundId = resolvedRoundObj._id;
     }
 
+    const mongoose = require("mongoose");
     const activeQueueElsewhere = await Queue.findOne({
       studentId,
-      companyId: { $ne: companyId },
+      companyId: { $ne: new mongoose.Types.ObjectId(companyId) },
       status: { $in: ["pending", "in_queue", "in_interview", "on_hold"] },
     }).populate("companyId", "name");
 
@@ -535,7 +536,7 @@ const addStudentToRound = async (req, res) => {
     let queueEntry = await Queue.findOne({ studentId, companyId, round: roundNameStr });
 
     if (queueEntry) {
-      if (queueEntry.roundId?.toString() === resolvedRoundId.toString() && ["in_queue", "in_interview", "on_hold", "not_joined"].includes(queueEntry.status)) {
+      if (queueEntry.roundId?.toString() === resolvedRoundId.toString() && ["pending", "in_queue", "in_interview", "on_hold", "not_joined"].includes(queueEntry.status)) {
         return res.status(400).json({ message: "Student is actively in this round's queue already." });
       }
 
@@ -1032,6 +1033,28 @@ const updateCompanyVenue = async (req, res) => {
   }
 };
 
+const updateCocoProfile = async (req, res) => {
+  try {
+    const { name, contact } = req.body;
+
+    // Check if phone number is already used by another coordinator
+    if (contact !== undefined && contact) {
+      const existingPhone = await Coordinator.findOne({ contact, userId: { $ne: req.user.id } });
+      if (existingPhone) return res.status(400).json({ message: `A CoCo with phone number "${contact}" already exists` });
+    }
+
+    const updated = await Coordinator.findOneAndUpdate(
+      { userId: req.user.id },
+      { ...(name !== undefined && { name }), ...(contact !== undefined && { contact }) },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ message: "Coordinator not found" });
+    res.json({ message: "Profile updated", coordinator: updated });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getAssignedCompany, getShortlistedStudents, addStudentToQueue,
   updateStudentStatus, sendNotification, toggleWalkIn,
@@ -1041,5 +1064,5 @@ module.exports = {
   getCocoNotifications, markNotifRead, clearAllNotifications, addStudentToCompany,
   promoteStudentsViaExcel,
   getPendingRequests, acceptStudent, rejectStudent, markCompleted,
-  updateCompanyVenue,
+  updateCompanyVenue, updateCocoProfile,
 };

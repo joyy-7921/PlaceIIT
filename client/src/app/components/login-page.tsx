@@ -13,9 +13,10 @@ interface LoginPageProps {
   onLogin: (role: UserRole, userId: string, userName: string, password?: string) => void;
   error?: string | null;
   loading?: boolean;
+  onClearError?: () => void;
 }
 
-export function LoginPage({ onLogin, error, loading }: LoginPageProps) {
+export function LoginPage({ onLogin, error, loading, onClearError }: LoginPageProps) {
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
@@ -125,6 +126,7 @@ export function LoginPage({ onLogin, error, loading }: LoginPageProps) {
                     setSelectedRole(null);
                     setUserId("");
                     setPassword("");
+                    if (onClearError) onClearError();
                   }}
                 >
                   ← Back
@@ -163,7 +165,10 @@ export function LoginPage({ onLogin, error, loading }: LoginPageProps) {
                         : "Enter your ID"
                     }
                     value={userId}
-                    onChange={(e) => setUserId(e.target.value)}
+                    onChange={(e) => {
+                      setUserId(e.target.value);
+                      if (onClearError) onClearError();
+                    }}
                     required
                     disabled={loading}
                   />
@@ -175,7 +180,10 @@ export function LoginPage({ onLogin, error, loading }: LoginPageProps) {
                     type="password"
                     placeholder="Enter your password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (onClearError) onClearError();
+                    }}
                     required
                     disabled={loading}
                   />

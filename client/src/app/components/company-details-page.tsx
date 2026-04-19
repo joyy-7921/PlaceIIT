@@ -116,35 +116,7 @@ export function CompanyDetailsPage({
   // Editable fields
   const [editableName, setEditableName] = useState(companyName);
   const [editableVenue, setEditableVenue] = useState(venue);
-  const [editableCoCo, setEditableCoCo] = useState(cocoAssigned);
   const [saving, setSaving] = useState(false);
-
-  // Dynamic CoCo list
-  const [availableCocos, setAvailableCocos] = useState<{ id: string, name: string }[]>([]);
-  const [initialCocoId, setInitialCocoId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchCocosList = async () => {
-      try {
-        const data: any = await adminApi.getCocos();
-        const mapped = data.map((c: any) => ({ id: c._id || c.id, name: c.name })).filter((c: any) => c.name);
-        setAvailableCocos(mapped);
-
-        if (cocoAssigned && cocoAssigned !== "Not Assigned") {
-          const match = mapped.find((c: any) => cocoAssigned.includes(c.name));
-          if (match) {
-            setEditableCoCo(match.id);
-            setInitialCocoId(match.id);
-            return;
-          }
-        }
-        setEditableCoCo("Not Assigned");
-      } catch (err) {
-        console.error("Failed to fetch cocos", err);
-      }
-    };
-    fetchCocosList();
-  }, [cocoAssigned]);
 
   const filteredStudents = students.filter(student => {
     const matchesSearch =
@@ -201,7 +173,7 @@ export function CompanyDetailsPage({
               <div>
                 <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">CoCo Assigned</div>
                 <div className="font-semibold text-gray-900">
-                  {editableCoCo === "Not Assigned" ? "Not Assigned" : availableCocos.find(c => c.id === editableCoCo)?.name || cocoAssigned}
+                  {cocoAssigned}
                 </div>
               </div>
             </div>
@@ -217,12 +189,12 @@ export function CompanyDetailsPage({
         </CardContent>
       </Card>
 
-      {/* Edit Assignment Section */}
+      {/* Edit Company Details Section */}
       <Card className="border-2 border-yellow-100 bg-yellow-50/30">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Edit3 className="h-5 w-5 text-yellow-600" />
-            <CardTitle className="text-xl font-bold text-gray-900">Edit Assignment</CardTitle>
+            <CardTitle className="text-xl font-bold text-gray-900">Edit Company Details</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
@@ -240,25 +212,6 @@ export function CompanyDetailsPage({
               </p>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">Change CoCo</label>
-              <Select value={editableCoCo} onValueChange={setEditableCoCo}>
-                <SelectTrigger className="bg-white">
-                  <SelectValue placeholder="Select CoCo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Not Assigned">Not Assigned</SelectItem>
-                  {availableCocos.map((coco) => (
-                    <SelectItem key={coco.id} value={coco.id}>
-                      {coco.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-gray-500 mt-1">
-                Assign or reassign a coordinator to this company
-              </p>
-            </div>
 
             <div className="space-y-2">
               <label className="text-sm font-semibold text-gray-700">Change Venue</label>
@@ -278,19 +231,18 @@ export function CompanyDetailsPage({
               className="bg-indigo-600 hover:bg-indigo-700"
               disabled={saving}
               onClick={async () => {
+                if (!editableVenue.trim()) {
+                  toast.error("Company venue cannot be empty or just spaces");
+                  return;
+                }
+                const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
+                if (emojiRegex.test(editableVenue)) {
+                  toast.error("Company venue cannot contain emojis");
+                  return;
+                }
                 setSaving(true);
                 try {
-                  await adminApi.updateCompany(companyId, { name: editableName, venue: editableVenue });
-
-                  if (editableCoCo !== initialCocoId) {
-                    if (initialCocoId && initialCocoId !== "Not Assigned") {
-                      await adminApi.removeCoco({ cocoId: initialCocoId, companyId });
-                    }
-                    if (editableCoCo && editableCoCo !== "Not Assigned") {
-                      await adminApi.assignCoco({ cocoId: editableCoCo, companyId });
-                    }
-                    setInitialCocoId(editableCoCo === "Not Assigned" ? null : editableCoCo);
-                  }
+                  await adminApi.updateCompany(companyId, { name: editableName, venue: editableVenue.trim() });
 
                   toast.success("Company updated successfully!");
                 } catch (err: any) {

@@ -1,5 +1,12 @@
 {
-  "dependencies": {
-    "xlsx": "^0.18.5"
+  "name": "placeiit",
+  "version": "1.0.0",
+  "description": "PlaceIIT – Campus Placement Portal",
+  "scripts": {
+    "build": "cd client && bun install && bun run build",
+    "start": "PORT=5173 NODE_ENV=production node server/src/server.js",
+    "dev:server": "cd server && bun run dev",
+    "dev:client": "cd client && bun run dev",
+    "install:all": "cd client && bun install && cd ../server && bun install"
   }
 }

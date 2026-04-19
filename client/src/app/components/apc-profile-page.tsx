@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app
 import { Separator } from "@/app/components/ui/separator";
 import { User, Mail, Phone, Lock, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
-import { authApi } from "@/app/lib/api";
+import { authApi, adminApi } from "@/app/lib/api";
 import { toast } from "sonner";
 
 interface APCProfilePageProps {
@@ -55,9 +55,27 @@ export function APCProfilePage({ userName, userId }: APCProfilePageProps) {
     window.scrollTo(0, 0);
   }, []);
 
-  const handleSaveProfile = () => {
-    toast.success("Profile updated successfully!");
-    setIsEditingProfile(false);
+  const handleSaveProfile = async () => {
+    const trimmedPhone = phone.trim();
+    if (trimmedPhone && !/^\d{10}$/.test(trimmedPhone)) {
+      toast.error("Phone number must be exactly 10 digits");
+      return;
+    }
+    const trimmedName = name.trim();
+    if (trimmedName) {
+      if (!/^[A-Za-z\s]+$/.test(trimmedName)) {
+        toast.error("APC name can only contain letters and spaces");
+        return;
+      }
+    }
+
+    try {
+      await adminApi.updateProfile({ name: trimmedName, phone: trimmedPhone });
+      toast.success("Profile updated successfully!");
+      setIsEditingProfile(false);
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to save profile");
+    }
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -134,9 +152,8 @@ export function APCProfilePage({ userName, userId }: APCProfilePageProps) {
                     <Input
                       id="name"
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      disabled={!isEditingProfile}
-                      className="pl-10"
+                      disabled
+                      className="pl-10 bg-gray-50"
                     />
                   </div>
                 </div>
@@ -149,9 +166,8 @@ export function APCProfilePage({ userName, userId }: APCProfilePageProps) {
                       id="email"
                       type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={!isEditingProfile}
-                      className="pl-10"
+                      disabled
+                      className="pl-10 bg-gray-50"
                     />
                   </div>
                 </div>
@@ -218,7 +234,6 @@ export function APCProfilePage({ userName, userId }: APCProfilePageProps) {
                     </div>
                     <div>
                       <p className="font-medium text-gray-900">Password</p>
-                      <p className="text-sm text-gray-500">Last changed 30 days ago</p>
                     </div>
                   </div>
                   <Button
@@ -316,28 +331,7 @@ export function APCProfilePage({ userName, userId }: APCProfilePageProps) {
             </CardContent>
           </Card>
 
-          {/* Account Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Account Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between py-2">
-                <span className="text-gray-600">Account Type</span>
-                <span className="font-medium text-gray-900">Administrator</span>
-              </div>
-              <Separator />
-              <div className="flex justify-between py-2">
-                <span className="text-gray-600">Account Status</span>
-                <span className="font-medium text-green-600">Active</span>
-              </div>
-              <Separator />
-              <div className="flex justify-between py-2">
-                <span className="text-gray-600">Member Since</span>
-                <span className="font-medium text-gray-900">{joinDate || "N/A"}</span>
-              </div>
-            </CardContent>
-          </Card>
+
         </div>
       </div>
     </div>

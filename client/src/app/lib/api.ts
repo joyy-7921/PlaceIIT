@@ -177,6 +177,7 @@ export const studentApi = {
         });
     },
     getDriveState: () => request("/student/drive-state"),
+    getContacts: () => request("/student/contacts"),
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -198,6 +199,8 @@ export const cocoApi = {
         request("/coco/queue/add", { method: "POST", body: JSON.stringify(data) }),
     updateStudentStatus: (data: { studentId: string; companyId: string; status: string; round?: string }) =>
         request("/coco/queue/status", { method: "PUT", body: JSON.stringify(data) }),
+    updateProfile: (data: { name?: string; contact?: string }) =>
+        request("/coco/profile", { method: "PUT", body: JSON.stringify(data) }),
     sendNotification: (data: { studentUserId: string; companyId?: string; message: string }) =>
         request("/coco/notify", { method: "POST", body: JSON.stringify(data) }),
     getPredefinedNotifications: () =>
@@ -276,6 +279,8 @@ export const adminApi = {
         request("/admin/assign-coco", { method: "POST", body: JSON.stringify(data) }),
     removeCoco: (data: { cocoId: string; companyId: string }) =>
         request("/admin/remove-coco", { method: "POST", body: JSON.stringify(data) }),
+    deleteCoco: (cocoId: string) =>
+        request(`/admin/cocos/${cocoId}`, { method: "DELETE" }),
     uploadCompanyExcel: (formData: FormData) =>
         uploadRequest("/admin/upload/companies", formData),
     uploadShortlistExcel: (formData: FormData) =>
@@ -314,6 +319,8 @@ export const adminApi = {
     getDriveState: () => request("/admin/drive-state"),
     updateDriveState: (data: { day: number; slot: string }) =>
         request("/admin/drive-state", { method: "PUT", body: JSON.stringify(data) }),
+    updateProfile: (data: { name?: string; phone?: string }) =>
+        request("/admin/profile", { method: "PUT", body: JSON.stringify(data) }),
     sendBroadcastNotification: (data: { message: string; type: string; audience: string }) =>
         request("/admin/broadcast-notification", { method: "POST", body: JSON.stringify(data) }),
     getNotifications: () => request("/admin/notifications"),

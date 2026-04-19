@@ -67,12 +67,34 @@ export function StudentProfilePage({ rollNo }: { rollNo: string }) {
     setProfileData((prev) => ({ ...prev, [key]: e.target.value }));
 
   const handleSave = async () => {
+    if (profileData.phone && !/^\d{10}$/.test(profileData.phone)) {
+      toast.error("Phone number must be exactly 10 digits");
+      return;
+    }
+    if (profileData.emergencyContactName) {
+      const trimmedECN = profileData.emergencyContactName.trim();
+      if (!trimmedECN) { toast.error("Emergency contact name cannot be just spaces"); return; }
+      if (!/^[A-Za-z\s]+$/.test(trimmedECN)) { toast.error("Emergency contact name can only contain letters and spaces"); return; }
+    }
+    if (profileData.emergencyContactPhone && !/^\d{10}$/.test(profileData.emergencyContactPhone)) {
+      toast.error("Emergency contact phone must be exactly 10 digits");
+      return;
+    }
+    if (profileData.friendContactName) {
+      const trimmedFCN = profileData.friendContactName.trim();
+      if (!trimmedFCN) { toast.error("Friend contact name cannot be just spaces"); return; }
+      if (!/^[A-Za-z\s]+$/.test(trimmedFCN)) { toast.error("Friend contact name can only contain letters and spaces"); return; }
+    }
+    if (profileData.friendContactPhone && !/^\d{10}$/.test(profileData.friendContactPhone)) {
+      toast.error("Friend contact phone must be exactly 10 digits");
+      return;
+    }
+
     setSaving(true);
     try {
       await studentApi.updateProfile({
         name: profileData.name,
         contact: profileData.phone,
-        email: profileData.email,
         emergencyContact: {
           name: profileData.emergencyContactName,
           phone: profileData.emergencyContactPhone,
@@ -130,7 +152,7 @@ export function StudentProfilePage({ rollNo }: { rollNo: string }) {
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
-              <Input id="name" value={profileData.name} onChange={set("name")} disabled={!isEditing} />
+              <Input id="name" value={profileData.name} disabled className="bg-gray-50" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="rollNo">Roll Number</Label>
@@ -140,11 +162,11 @@ export function StudentProfilePage({ rollNo }: { rollNo: string }) {
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="email" className="flex items-center"><Mail className="h-4 w-4 mr-2" />Email</Label>
-              <Input id="email" type="email" value={profileData.email} onChange={set("email")} disabled={!isEditing} />
+              <Input id="email" type="email" value={profileData.email} disabled className="bg-gray-50" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone" className="flex items-center"><Phone className="h-4 w-4 mr-2" />Phone Number</Label>
-              <Input id="phone" value={profileData.phone} onChange={set("phone")} disabled={!isEditing} />
+              <Input id="phone" value={profileData.phone} onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 10); set("phone")({ target: { value: v } } as any); }} disabled={!isEditing} inputMode="numeric" maxLength={10} />
             </div>
           </div>
           <div className="grid md:grid-cols-2 gap-4">
@@ -154,7 +176,7 @@ export function StudentProfilePage({ rollNo }: { rollNo: string }) {
             </div>
             <div className="space-y-2">
               <Label className="flex items-center"><Phone className="h-4 w-4 mr-2 text-red-500" />Emergency Contact Phone</Label>
-              <Input value={profileData.emergencyContactPhone} onChange={set("emergencyContactPhone")} disabled={!isEditing} placeholder="Phone number" />
+              <Input value={profileData.emergencyContactPhone} onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 10); set("emergencyContactPhone")({ target: { value: v } } as any); }} disabled={!isEditing} placeholder="Phone number" inputMode="numeric" maxLength={10} />
             </div>
           </div>
           <div className="grid md:grid-cols-2 gap-4">
@@ -164,7 +186,7 @@ export function StudentProfilePage({ rollNo }: { rollNo: string }) {
             </div>
             <div className="space-y-2">
               <Label className="flex items-center"><Phone className="h-4 w-4 mr-2 text-blue-500" />Friend Contact Phone</Label>
-              <Input value={profileData.friendContactPhone} onChange={set("friendContactPhone")} disabled={!isEditing} placeholder="Phone number" />
+              <Input value={profileData.friendContactPhone} onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 10); set("friendContactPhone")({ target: { value: v } } as any); }} disabled={!isEditing} placeholder="Phone number" inputMode="numeric" maxLength={10} />
             </div>
           </div>
         </CardContent>

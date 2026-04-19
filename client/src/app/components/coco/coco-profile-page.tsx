@@ -80,10 +80,15 @@ export function CoCoProfilePage({ userId }: { userId: string }) {
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
   const handleSave = async () => {
+    if (profileData.phone && !/^\d{10}$/.test(profileData.phone)) {
+      toast.error("Phone number must be exactly 10 digits");
+      return;
+    }
+
     setSaving(true);
     try {
-      // No dedicated coco profile update endpoint yet — just show success
-      toast.success("Profile saved");
+      await cocoApi.updateProfile({ name: profileData.name, contact: profileData.phone });
+      toast.success("Profile saved successfully!");
       setIsEditing(false);
     } catch (err: any) {
       toast.error(err.message ?? "Save failed");
@@ -122,7 +127,7 @@ export function CoCoProfilePage({ userId }: { userId: string }) {
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
-              <Input id="name" value={profileData.name} onChange={(e) => setProfileData({ ...profileData, name: e.target.value })} disabled={!isEditing} />
+              <Input id="name" value={profileData.name} disabled className="bg-gray-50" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="userId">User ID</Label>
@@ -145,20 +150,6 @@ export function CoCoProfilePage({ userId }: { userId: string }) {
               <Input id="department" value={profileData.department} disabled className="bg-gray-50" />
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle className="flex items-center"><Building2 className="h-5 w-5 mr-2 text-gray-600" />Coordinator Statistics</CardTitle></CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Companies Assigned</span>
-                <Badge className="bg-green-600 text-white">{profileData.companiesAssigned}</Badge>
-              </div>
-            </div>
-          </div>
         </CardContent>
       </Card>
 

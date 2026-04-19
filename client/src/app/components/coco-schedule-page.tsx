@@ -36,7 +36,7 @@ export function CoCoSchedulePage({ coco, onBack }: CoCoSchedulePageProps) {
   // Convert to scheduleData format
   const scheduleData = Object.keys(groupedTasks).sort().map((dayLabel) => {
     const slots = groupedTasks[dayLabel].map((assignment) => ({
-      time: assignment.slot.toLowerCase() === "morning" ? "09:00 AM - 01:00 PM" : "02:00 PM - 06:00 PM",
+      time: assignment.slot.toLowerCase() === "morning" ? "Morning" : "Afternoon",
       company: assignment.name,
       venue: assignment.venue && assignment.venue !== "Not Assigned" ? assignment.venue : "Not Assigned",
       candidateCount: 0,
@@ -44,7 +44,7 @@ export function CoCoSchedulePage({ coco, onBack }: CoCoSchedulePageProps) {
     }));
     return {
       day: dayLabel,
-      date: "Schedule depending on slot", 
+      date: "Schedule depending on slot",
       slots
     };
   });
@@ -81,7 +81,7 @@ export function CoCoSchedulePage({ coco, onBack }: CoCoSchedulePageProps) {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to CoCo Management
           </Button>
-          
+
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">{coco.name}</h1>
@@ -167,7 +167,7 @@ export function CoCoSchedulePage({ coco, onBack }: CoCoSchedulePageProps) {
         {/* Detailed Schedule */}
         <div className="space-y-6">
           <h2 className="text-2xl font-bold text-gray-900">Interview Schedule</h2>
-          
+
           {scheduleData.map((daySchedule, dayIndex) => (
             <Card key={dayIndex}>
               <CardHeader className="bg-gray-50">
@@ -240,22 +240,6 @@ export function CoCoSchedulePage({ coco, onBack }: CoCoSchedulePageProps) {
           ))}
         </div>
 
-        {/* Action Buttons */}
-        <Card className="mt-8 bg-indigo-50 border-indigo-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-semibold text-gray-900">Need to make changes?</p>
-                <p className="text-sm text-gray-600 mt-1">
-                  Contact the administrator to modify assignments or schedule
-                </p>
-              </div>
-              <Button variant="outline" className="bg-white">
-                Contact Admin
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

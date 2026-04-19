@@ -64,12 +64,12 @@ export function LoginPageRoute() {
         }
     };
 
-  useEffect(() => {
-    // If already logged in, redirect to the correct portal
-    if (auth.isLoggedIn && auth.userRole) {
-      navigateToPortal(auth.userRole as UserRole);
-    }
-  }, [auth.isLoggedIn, auth.userRole]);
+    useEffect(() => {
+        // If already logged in, redirect to the correct portal
+        if (auth.isLoggedIn && auth.userRole) {
+            navigateToPortal(auth.userRole as UserRole);
+        }
+    }, [auth.isLoggedIn, auth.userRole]);
 
-    return <LoginPage onLogin={handleLogin} error={error} loading={loading} />;
+    return <LoginPage onLogin={handleLogin} error={error} loading={loading} onClearError={() => setError(null)} />;
 }

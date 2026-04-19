@@ -26,6 +26,11 @@ export function ChangePasswordRoute() {
       toast.error("Password must be at least 6 characters long.");
       return;
     }
+    const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
+    if (emojiRegex.test(newPassword)) {
+      toast.error("Password cannot contain emojis.");
+      return;
+    }
     if (newPassword !== confirmPassword) {
       toast.error("Passwords do not match.");
       return;
@@ -34,9 +39,25 @@ export function ChangePasswordRoute() {
       toast.error("Emergency contact fields are required.");
       return;
     }
+    const trimmedECN = emergencyContactName.trim();
+    if (!trimmedECN) {
+      toast.error("Emergency contact name cannot be just spaces.");
+      return;
+    }
+    if (!/^[A-Za-z\s]+$/.test(trimmedECN)) {
+      toast.error("Emergency contact name can only contain letters and spaces.");
+      return;
+    }
     if (!/^\d{10}$/.test(emergencyContactPhone.trim())) {
       toast.error("Emergency contact phone number must be exactly 10 digits.");
       return;
+    }
+    if (friendContactName.trim()) {
+      const trimmedFCN = friendContactName.trim();
+      if (!/^[A-Za-z\s]+$/.test(trimmedFCN)) {
+        toast.error("Friend contact name can only contain letters and spaces.");
+        return;
+      }
     }
     if (friendContactPhone.trim() && !/^\d{10}$/.test(friendContactPhone.trim())) {
       toast.error("Friend contact phone number must be exactly 10 digits.");
@@ -57,16 +78,16 @@ export function ChangePasswordRoute() {
       });
       // Update local storage / context if necessary, or just force them to log in again
       if (res.user) {
-         // Optionally update the context here, but simplest is to redirect to portal
-         // We successfully changed it. Let's redirect them based on their role
-         toast.success("Password changed successfully!");
-         const role = res.user.role || auth.userRole;
-         if (role === 'apc') navigate("/apc");
-         else if (role === 'coco') navigate("/coco");
-         else navigate("/student");
+        // Optionally update the context here, but simplest is to redirect to portal
+        // We successfully changed it. Let's redirect them based on their role
+        toast.success("Password changed successfully!");
+        const role = res.user.role || auth.userRole;
+        if (role === 'apc') navigate("/apc");
+        else if (role === 'coco') navigate("/coco");
+        else navigate("/student");
 
-         // Also tell the auth context they changed it
-         auth.setUserMustChangePassword?.(false);
+        // Also tell the auth context they changed it
+        auth.setUserMustChangePassword?.(false);
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to change password.");
@@ -136,9 +157,10 @@ export function ChangePasswordRoute() {
                 <Input
                   id="emergency-contact-phone"
                   value={emergencyContactPhone}
-                  onChange={(e) => setEmergencyContactPhone(e.target.value)}
+                  onChange={(e) => setEmergencyContactPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                   placeholder="10-digit phone number"
                   inputMode="numeric"
+                  maxLength={10}
                   required
                 />
               </div>
@@ -159,10 +181,10 @@ export function ChangePasswordRoute() {
                 <Input
                   id="friend-contact-phone"
                   value={friendContactPhone}
-                  onChange={(e) => setFriendContactPhone(e.target.value)}
+                  onChange={(e) => setFriendContactPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                   placeholder="10-digit phone number"
                   inputMode="numeric"
-
+                  maxLength={10}
                 />
               </div>
 

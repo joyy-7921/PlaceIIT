@@ -151,6 +151,10 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
       in_interview: "in-interview", interviewing: "in-interview", "in-interview": "in-interview",
       completed: "completed", done: "completed",
       unassigned: "unassigned",
+      pending: "in-queue",
+      on_hold: "in-queue",
+      on_hold_active: "in-queue",
+      not_joined: "unassigned",
     };
     return {
       id: raw._id ?? raw.id ?? raw.student?._id ?? String(i),
@@ -1138,15 +1142,21 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
                   {/* Action row */}
                   <div className="flex flex-wrap items-center gap-2 border-t pt-3 mt-1">
                     {student.status === "unassigned" ? (
-                      <Button
-                        size="sm"
-                        className={student.isBusyGlobally ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed" : "bg-green-600 hover:bg-green-700 text-white"}
-                        disabled={student.isBusyGlobally}
-                        onClick={() => { setIsAddQueueOpen(true); setStudentSearchQuery(student.name); handleSearchStudents(); }}
-                      >
-                        <UserPlus className="h-3.5 w-3.5 mr-1" />
-                        {student.isBusyGlobally ? "Currently Busy" : "Add to Queue"}
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          className={student.isBusyGlobally ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed" : "bg-green-600 hover:bg-green-700 text-white"}
+                          disabled={student.isBusyGlobally}
+                          onClick={() => { setIsAddQueueOpen(true); setStudentSearchQuery(student.name); handleSearchStudents(); }}
+                        >
+                          <UserPlus className="h-3.5 w-3.5 mr-1" />
+                          {student.isBusyGlobally ? "Currently Busy" : "Add to Queue"}
+                        </Button>
+                        <Button size="sm" variant="outline" className="border-gray-300" onClick={() => { setSelectedStudentForNotification(student); setIsNotificationModalOpen(true); }}>
+                          <Mail className="h-3.5 w-3.5 mr-1" />
+                          Send Notification
+                        </Button>
+                      </>
                     ) : (
                       <>
                         <Button size="sm" variant="outline" className="border-gray-300" onClick={() => { setSelectedStudentForNotification(student); setIsNotificationModalOpen(true); }}>

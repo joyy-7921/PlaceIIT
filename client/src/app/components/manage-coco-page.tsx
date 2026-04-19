@@ -170,12 +170,16 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
     adminApi.getDriveState().then((data: any) => {
       setDriveDay(data.currentDay ?? null);
       setDriveSlot(data.currentSlot ?? null);
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   const handleAddCoCo = async () => {
     if (!newCoCoName || !newCoCoEmail || !newCoCoRollNumber || !newCoCoPhone) {
       toast.error("Please fill all required fields");
+      return;
+    }
+    if (!/^\d+$/.test(newCoCoRollNumber.trim())) {
+      toast.error("Roll number can only contain digits");
       return;
     }
     setSaving(true);
@@ -226,12 +230,12 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
           console.warn(`Excel import errors in ${file.name}:`, res.errors);
         }
       }
-      
+
       toast.success("Co-Cos uploaded successfully");
       if (errorCount > 0) {
         toast.warning(`${errorCount} row(s) had issues across files. Check console.`);
       }
-      
+
       setIsAddDialogOpen(false);
       setFiles([]);
       await fetchAll();
@@ -244,11 +248,7 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
 
   const handleRemoveCoCo = async (id: string) => {
     try {
-      // Remove all assignments first
-      const cocoAssignments = assignments.filter((a) => a.cocoId === id);
-      for (const a of cocoAssignments) {
-        await adminApi.removeCoco({ cocoId: id, companyId: a.companyId }).catch(() => null);
-      }
+      await adminApi.deleteCoco(id);
       setCocos((prev) => prev.filter((c) => c.id !== id));
       setAssignments((prev) => prev.filter((a) => a.cocoId !== id));
       toast.success("CoCo removed");
@@ -375,7 +375,7 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
       await adminApi.updateCompany(companyId, { requiredCocosCount: count });
       setCompanies(prev => prev.map(c => c.id === companyId ? { ...c, requiredCocosCount: count } : c));
       toast.success("Updated required CoCos count");
-    } catch(err: any) {
+    } catch (err: any) {
       toast.error(err.message ?? "Failed to update required CoCos count");
     }
   };
@@ -424,7 +424,7 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
       for (const id of added) {
         await adminApi.assignCoco({ cocoId: id, companyId: assigningCompanyId });
       }
-      
+
       toast.success("Assignments updated successfully!");
       setAssignDialogOpen(false);
       await fetchAll();
@@ -532,8 +532,8 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
                     type="button"
                     onClick={() => setAddMethod(method)}
                     className={`px-4 py-2 font-medium transition-colors border-b-2 ${addMethod === method
-                        ? "border-indigo-600 text-indigo-600"
-                        : "border-transparent text-gray-500 hover:text-gray-700"
+                      ? "border-indigo-600 text-indigo-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
                       }`}
                   >
                     {method === "manual" ? "Manual Entry" : "Upload Excel"}
@@ -558,7 +558,7 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone">Phone *</Label>
-                      <Input id="phone" placeholder="Enter 10-digit phone number" value={newCoCoPhone} onChange={(e) => setNewCoCoPhone(e.target.value)} />
+                      <Input id="phone" placeholder="Enter 10-digit phone number" inputMode="numeric" maxLength={10} value={newCoCoPhone} onChange={(e) => setNewCoCoPhone(e.target.value.replace(/\D/g, "").slice(0, 10))} />
                     </div>
                     <p className="text-xs text-gray-500 mt-4">Username (cocoX) and random password will be auto-generated and sent via email.</p>
                   </div>
@@ -692,58 +692,58 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
           {filteredCocos.map((coco) => {
             const assigned = isCocoAssigned(coco.id);
             return (
-            <Card key={coco.id} className="hover:shadow-lg transition-shadow duration-200 cursor-pointer relative" onClick={() => handleCoCoCardClick(coco)}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <CardTitle className="text-lg font-bold text-gray-900">
-                    {coco.name} {coco.instituteId ? <span className="text-sm font-normal text-gray-500">({coco.instituteId})</span> : null}
-                  </CardTitle>
-                  <div className="flex items-center gap-2 -mt-1 -mr-1">
-                    <Badge className={assigned
-                      ? "bg-green-100 text-green-800 border border-green-300 text-xs"
-                      : "bg-gray-100 text-gray-600 border border-gray-300 text-xs"
-                    }>
-                      {assigned ? "Assigned" : "Unassigned"}
-                    </Badge>
+              <Card key={coco.id} className="hover:shadow-lg transition-shadow duration-200 cursor-pointer relative" onClick={() => handleCoCoCardClick(coco)}>
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <CardTitle className="text-lg font-bold text-gray-900">
+                      {coco.name} {coco.instituteId ? <span className="text-sm font-normal text-gray-500">({coco.instituteId})</span> : null}
+                    </CardTitle>
+                    <div className="flex items-center gap-2 -mt-1 -mr-1">
+                      <Badge className={assigned
+                        ? "bg-green-100 text-green-800 border border-green-300 text-xs"
+                        : "bg-gray-100 text-gray-600 border border-gray-300 text-xs"
+                      }>
+                        {assigned ? "Assigned" : "Unassigned"}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={(e) => { e.stopPropagation(); handleRemoveCoCo(coco.id); }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg">
+                    <Mail className="h-5 w-5 text-indigo-600" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-0.5">Email</div>
+                      <span className="text-sm text-gray-900 font-medium truncate block">{coco.email}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg">
+                    <span className="text-lg">📞</span>
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-0.5">Phone</div>
+                      <span className="text-sm text-gray-900 font-medium">{coco.phone || "—"}</span>
+                    </div>
+                  </div>
+                  {getAssignmentCount(coco.id) > 0 && (
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      onClick={(e) => { e.stopPropagation(); handleRemoveCoCo(coco.id); }}
+                      className="w-full mt-2"
+                      onClick={(e) => { e.stopPropagation(); handleCoCoCardClick(coco); }}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Calendar className="h-4 w-4 mr-2" />
+                      View Schedule
                     </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg">
-                  <Mail className="h-5 w-5 text-indigo-600" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-0.5">Email</div>
-                    <span className="text-sm text-gray-900 font-medium truncate block">{coco.email}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg">
-                  <span className="text-lg">📞</span>
-                  <div className="flex-1">
-                    <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-0.5">Phone</div>
-                    <span className="text-sm text-gray-900 font-medium">{coco.phone || "—"}</span>
-                  </div>
-                </div>
-                {getAssignmentCount(coco.id) > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full mt-2"
-                    onClick={(e) => { e.stopPropagation(); handleCoCoCardClick(coco); }}
-                  >
-                    <Calendar className="h-4 w-4 mr-2" />
-                    View Schedule
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+                  )}
+                </CardContent>
+              </Card>
             );
           })}
         </div>
@@ -783,7 +783,7 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
                   filteredCompanies.map((company) => {
                     const assignedCount = getCoCosAssignedToCompany(company.id).length;
                     const requiredCount = company.requiredCocosCount || 1;
-                    
+
                     let bgColorClass = "bg-gray-50 hover:bg-gray-100";
                     if (assignedCount === 0) {
                       bgColorClass = "bg-red-50 hover:bg-red-100 border border-red-200";
@@ -801,89 +801,89 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
                     slots.length = requiredCount;
 
                     return (
-                    <div key={company.id} className={`p-4 rounded-lg transition-colors ${bgColorClass}`}>
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3">
-                        <div className="flex-1 w-full mb-2 sm:mb-0">
-                          <div className="font-bold text-gray-900 mb-1">{company.name}</div>
-                          <div className="flex items-center gap-4 text-sm text-gray-600">
-                            <div className="flex items-center gap-1.5">
-                              <Calendar className="h-3.5 w-3.5" />
-                              <span>{company.day}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <Clock className="h-3.5 w-3.5" />
-                              <span>{company.slot}</span>
+                      <div key={company.id} className={`p-4 rounded-lg transition-colors ${bgColorClass}`}>
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3">
+                          <div className="flex-1 w-full mb-2 sm:mb-0">
+                            <div className="font-bold text-gray-900 mb-1">{company.name}</div>
+                            <div className="flex items-center gap-4 text-sm text-gray-600">
+                              <div className="flex items-center gap-1.5">
+                                <Calendar className="h-3.5 w-3.5" />
+                                <span>{company.day}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <Clock className="h-3.5 w-3.5" />
+                                <span>{company.slot}</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        {/* Slot count selector */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-500 font-medium">CoCo Slots:</span>
-                          <div className="flex items-center gap-1 bg-white border border-gray-300 rounded-lg px-1 py-0.5">
-                            <button
-                              className="p-0.5 rounded hover:bg-gray-100 text-gray-500 disabled:opacity-30"
-                              disabled={requiredCount <= 1}
-                              onClick={() => handleRequestSlotCountChange(company.id, requiredCount - 1, requiredCount)}
-                            >
-                              <Minus className="h-3.5 w-3.5" />
-                            </button>
-                            <span className="text-sm font-bold text-gray-800 w-6 text-center">{requiredCount}</span>
-                            <button
-                              className="p-0.5 rounded hover:bg-gray-100 text-gray-500"
-                              onClick={() => handleRequestSlotCountChange(company.id, requiredCount + 1, requiredCount)}
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                      {/* Assignment slots */}
-                      <div className="space-y-2">
-                        {slots.map((slotCocoId, slotIdx) => {
-                          const assignedCoco = cocos.find(c => c.id === slotCocoId);
-                          // Available cocos: only globally unassigned + the one currently in this slot
-                          const availableCocos = cocos.filter(c => {
-                            if (c.id === slotCocoId) return true; // current assignment
-                            if (isCocoAssigned(c.id)) return false; // assigned elsewhere globally
-                            // Also check day/slot conflict
-                            if (isCocoBusy(c.id, company.day, company.slot)) return false;
-                            return true;
-                          });
-                          return (
-                            <div key={slotIdx} className="flex items-center gap-2">
-                              <span className="text-xs text-gray-500 font-medium w-14 shrink-0">Slot {slotIdx + 1}:</span>
-                              <Select
-                                value={slotCocoId || "none"}
-                                onValueChange={(value) => {
-                                  const newId = value === "none" ? "" : value;
-                                  handleRequestAssignmentChange(company.id, slotIdx, newId, slotCocoId);
-                                }}
+                          {/* Slot count selector */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500 font-medium">CoCo Slots:</span>
+                            <div className="flex items-center gap-1 bg-white border border-gray-300 rounded-lg px-1 py-0.5">
+                              <button
+                                className="p-0.5 rounded hover:bg-gray-100 text-gray-500 disabled:opacity-30"
+                                disabled={requiredCount <= 1}
+                                onClick={() => handleRequestSlotCountChange(company.id, requiredCount - 1, requiredCount)}
                               >
-                                <SelectTrigger className="flex-1">
-                                  <SelectValue placeholder="Select CoCo" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none" className="text-gray-400 italic">No Assignment</SelectItem>
-                                  {availableCocos.map((coco) => (
-                                    <SelectItem key={coco.id} value={coco.id}>
-                                      {coco.name} {coco.instituteId ? `(${coco.instituteId})` : ""}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              {assignedCoco && (
-                                <Badge className="bg-green-100 text-green-700 border border-green-300 text-xs shrink-0">Assigned</Badge>
-                              )}
-                              {!assignedCoco && (
-                                <Badge className="bg-gray-100 text-gray-500 border border-gray-300 text-xs shrink-0">Unassigned</Badge>
-                              )}
+                                <Minus className="h-3.5 w-3.5" />
+                              </button>
+                              <span className="text-sm font-bold text-gray-800 w-6 text-center">{requiredCount}</span>
+                              <button
+                                className="p-0.5 rounded hover:bg-gray-100 text-gray-500"
+                                onClick={() => handleRequestSlotCountChange(company.id, requiredCount + 1, requiredCount)}
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                              </button>
                             </div>
-                          );
-                        })}
+                          </div>
+                        </div>
+                        {/* Assignment slots */}
+                        <div className="space-y-2">
+                          {slots.map((slotCocoId, slotIdx) => {
+                            const assignedCoco = cocos.find(c => c.id === slotCocoId);
+                            // Available cocos: only globally unassigned + the one currently in this slot
+                            const availableCocos = cocos.filter(c => {
+                              if (c.id === slotCocoId) return true; // current assignment
+                              if (isCocoAssigned(c.id)) return false; // assigned elsewhere globally
+                              // Also check day/slot conflict
+                              if (isCocoBusy(c.id, company.day, company.slot)) return false;
+                              return true;
+                            });
+                            return (
+                              <div key={slotIdx} className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 font-medium w-14 shrink-0">Slot {slotIdx + 1}:</span>
+                                <Select
+                                  value={slotCocoId || "none"}
+                                  onValueChange={(value) => {
+                                    const newId = value === "none" ? "" : value;
+                                    handleRequestAssignmentChange(company.id, slotIdx, newId, slotCocoId);
+                                  }}
+                                >
+                                  <SelectTrigger className="flex-1">
+                                    <SelectValue placeholder="Select CoCo" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none" className="text-gray-400 italic">No Assignment</SelectItem>
+                                    {availableCocos.map((coco) => (
+                                      <SelectItem key={coco.id} value={coco.id}>
+                                        {coco.name} {coco.instituteId ? `(${coco.instituteId})` : ""}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {assignedCoco && (
+                                  <Badge className="bg-green-100 text-green-700 border border-green-300 text-xs shrink-0">Assigned</Badge>
+                                )}
+                                {!assignedCoco && (
+                                  <Badge className="bg-gray-100 text-gray-500 border border-gray-300 text-xs shrink-0">Unassigned</Badge>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })
+                    );
+                  })
                 ) : (
                   <div className="py-12 text-center text-gray-500">
                     {showUnassignedOnly ? "No unassigned companies found." : companySearchQuery ? "No companies found matching your search." : "No companies available."}
@@ -916,21 +916,21 @@ export function ManageCoCoPage({ onCoCoClick }: ManageCoCoPageProps) {
                   }}
                 >
                   <SelectTrigger>
-                     <SelectValue placeholder="Select a CoCo..." />
+                    <SelectValue placeholder="Select a CoCo..." />
                   </SelectTrigger>
                   <SelectContent>
-                     <SelectItem value="unassigned" className="text-gray-400 italic">Unassigned</SelectItem>
-                     {cocos.map(coco => {
-                        const isSelectedElsewhere = selectedCocos.some((v, i) => v === coco.id && i !== idx);
-                        if (isSelectedElsewhere) return null;
-                        // Only show globally unassigned cocos
-                        if (isCocoAssigned(coco.id) && !selectedCocos.includes(coco.id)) return null;
-                        return (
-                          <SelectItem key={coco.id} value={coco.id}>
-                            {coco.name} {coco.instituteId ? `(${coco.instituteId})` : ""}
-                          </SelectItem>
-                        );
-                     })}
+                    <SelectItem value="unassigned" className="text-gray-400 italic">Unassigned</SelectItem>
+                    {cocos.map(coco => {
+                      const isSelectedElsewhere = selectedCocos.some((v, i) => v === coco.id && i !== idx);
+                      if (isSelectedElsewhere) return null;
+                      // Only show globally unassigned cocos
+                      if (isCocoAssigned(coco.id) && !selectedCocos.includes(coco.id)) return null;
+                      return (
+                        <SelectItem key={coco.id} value={coco.id}>
+                          {coco.name} {coco.instituteId ? `(${coco.instituteId})` : ""}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
