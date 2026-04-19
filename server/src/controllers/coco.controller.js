@@ -532,12 +532,7 @@ const addStudentToRound = async (req, res) => {
     const roundNameStr = resolvedRoundObj ? (resolvedRoundObj.roundName || `Round ${resolvedRoundObj.roundNumber}`) : "Round 1";
 
     // Find or create queue entry.
-    // Some databases may still have the legacy unique index on { companyId, studentId },
-    // so we reuse an existing company-level row when a round-specific row doesn't exist.
     let queueEntry = await Queue.findOne({ studentId, companyId, round: roundNameStr });
-    if (!queueEntry) {
-      queueEntry = await Queue.findOne({ studentId, companyId }).sort({ updatedAt: -1, createdAt: -1 });
-    }
 
     if (queueEntry) {
       if (queueEntry.roundId?.toString() === resolvedRoundId.toString() && ["in_queue", "in_interview", "on_hold", "not_joined"].includes(queueEntry.status)) {
