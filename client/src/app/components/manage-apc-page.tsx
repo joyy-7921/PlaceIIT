@@ -160,7 +160,7 @@ export function ManageApcPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Manage APCs</h1>
           <p className="text-gray-500">Create and manage Sub-Admins / APCs</p>

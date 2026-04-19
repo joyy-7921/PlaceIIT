@@ -748,7 +748,7 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
       {/* ═══════════════  INTERVIEW PANELS  ═══════════════ */}
       <Card className="bg-white border border-gray-200 rounded-xl shadow-sm">
         <CardHeader className="p-5 md:p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle className="flex items-center text-lg">
               <Users className="h-5 w-5 mr-2 text-green-600" />
               Interview Panels
@@ -786,7 +786,7 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
                   <CardContent className="p-5 flex flex-col flex-1">
                     <div className="space-y-4 flex flex-col flex-1">
                       {/* Header row: Panel name + editable venue */}
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-2 gap-2">
                         <h3 className="font-semibold text-gray-900 text-lg">{panel.name}</h3>
                         {editingVenue === panel.id ? (
                           <Input
@@ -1017,7 +1017,7 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
       {/* ═══════════════  STUDENTS LIST  ═══════════════ */}
       <Card className="bg-white border border-gray-200 rounded-xl shadow-sm">
         <CardHeader className="p-5 md:p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle className="flex items-center text-lg">
               <Users className="h-5 w-5 mr-2 text-green-600" />
               Students List

@@ -236,15 +236,15 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
     <>
       {/* Header Section */}
       <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900 mb-3">Hello, {userName}</h1>
-        <p className="text-gray-600 text-lg">
+        <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-3">Hello, {userName}</h1>
+        <p className="text-gray-600 text-base sm:text-lg">
           All the best for managing placements today. You have{" "}
           <span className="text-indigo-600 font-semibold">{stats.companies} active companies</span> pending.
         </p>
       </div>
 
       {/* Main Stats */}
-      <div className="grid gap-6 md:grid-cols-3 mb-8">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 mb-8">
         <StatsCard
           title="Total Students"
           value={stats.students}
@@ -276,7 +276,7 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
-            <div className="mb-6 p-4 bg-indigo-50 rounded-lg flex items-center justify-center gap-3">
+            <div className="mb-6 p-4 bg-indigo-50 rounded-lg flex flex-wrap items-center justify-center gap-3">
               <span className="inline-flex items-center px-4 py-2 rounded-full bg-indigo-600 text-white font-bold text-sm shadow-sm">
                 Day {driveDay}
               </span>
@@ -364,7 +364,7 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
             </div>
             <div className="flex justify-end">
               <Button
-                className="bg-amber-600 hover:bg-amber-700 text-white"
+                className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white"
                 onClick={handleSendNotification}
                 disabled={sendingNotif || !notifMessage.trim()}
               >
@@ -435,13 +435,13 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
                 {schedule.map((interview) => (
                   <div
                     key={interview.id}
-                    className="flex items-start justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                    className="flex flex-col sm:flex-row sm:items-start sm:justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors gap-2"
                   >
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <h4 className="font-semibold text-gray-900">{interview.company}</h4>
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
                         <div className="flex items-center gap-1">
                           <Clock className="h-4 w-4" />
                           {interview.time}
@@ -469,7 +469,7 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
           <CardTitle className="text-xl">Quick Actions</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
             <Button
               variant="outline"
               className="h-auto py-4 flex-col gap-2 bg-white hover:bg-indigo-50 hover:border-indigo-300"
@@ -534,11 +534,11 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
           <p className="text-sm text-gray-500 mt-1">Irreversible actions for tenure/phase transitions. Use with extreme caution.</p>
         </CardHeader>
         <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3">
             {auth.isMainAdmin && (
               <Button
                 variant="outline"
-                className="border-red-300 text-red-700 hover:bg-red-50"
+                className="w-full sm:w-auto border-red-300 text-red-700 hover:bg-red-50"
                 onClick={() => { setResetConfirmText(""); setShowResetApcs(true); }}
               >
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -547,7 +547,7 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
             )}
             <Button
               variant="outline"
-              className="border-red-300 text-red-700 hover:bg-red-50"
+              className="w-full sm:w-auto border-red-300 text-red-700 hover:bg-red-50"
               onClick={() => { setResetConfirmText(""); setShowResetStudents(true); }}
             >
               <Trash2 className="h-4 w-4 mr-2" />
@@ -555,7 +555,7 @@ export function APCHomePage({ userName, stats, onNavigate }: APCHomePageProps) {
             </Button>
             <Button
               variant="outline"
-              className="border-red-300 text-red-700 hover:bg-red-50"
+              className="w-full sm:w-auto border-red-300 text-red-700 hover:bg-red-50"
               onClick={() => { setResetConfirmText(""); setShowResetCocos(true); }}
             >
               <Trash2 className="h-4 w-4 mr-2" />

@@ -334,7 +334,7 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Manage Companies</h1>
           <p className="text-gray-500">Add companies and manage interview details</p>
@@ -475,9 +475,9 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
           filteredCompanies.map((company) => (
             <Card key={company.id} className="hover:shadow-lg transition-shadow duration-200">
               <CardHeader>
-                <div className="flex items-start justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                   <div>
-                    <CardTitle className="text-2xl font-bold text-gray-900">{company.name}</CardTitle>
+                    <CardTitle className="text-xl font-bold text-gray-900 break-words">{company.name}</CardTitle>
                     <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
                       <div className="flex items-center gap-1.5">
                         <Calendar className="h-4 w-4" />
@@ -489,7 +489,7 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
                       </div>
                     </div>
                   </div>
-                  <div className="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg font-semibold">
+                  <div className="bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg font-semibold text-sm whitespace-nowrap shrink-0">
                     {company.shortlistedCount} Students
                   </div>
                 </div>
@@ -520,8 +520,8 @@ export function ManageCompaniesPage({ onCompanyClick }: ManageCompaniesPageProps
                   </div>
                 </div>
 
-                <div className="flex gap-3 pt-2">
-                  <Button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm" size="sm" onClick={() => onCompanyClick(company)}>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm text-xs sm:text-sm" size="sm" onClick={() => onCompanyClick(company)}>
                     <Eye className="h-4 w-4" /> View Details
                   </Button>
 
