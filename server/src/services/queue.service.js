@@ -350,8 +350,12 @@ const rejectQueueRequest = async (studentId, companyId, round = "Round 1") => {
   });
   if (!entry) throw new Error("No pending request found for this student");
 
-  entry.status = STUDENT_STATUS.REJECTED;
-  entry.completedAt = new Date();
+  if (entry.isWalkIn) {
+    entry.status = STUDENT_STATUS.REJECTED;
+    entry.completedAt = new Date();
+  } else {
+    entry.status = STUDENT_STATUS.NOT_JOINED;
+  }
   await entry.save();
 
   const studentDoc = await Student.findById(studentId);
@@ -360,7 +364,7 @@ const rejectQueueRequest = async (studentId, companyId, round = "Round 1") => {
   });
   if (studentDoc) {
     safeEmitTo(`user:${studentDoc.userId}`, SOCKET_EVENTS.STATUS_UPDATED, {
-      companyId, status: STUDENT_STATUS.REJECTED,
+      companyId, status: entry.status,
     });
   }
 
