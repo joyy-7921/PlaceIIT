@@ -8,6 +8,7 @@ const ExcelUpload = require("../models/ExcelUpload.model");
 const crypto = require("crypto");
 const { sendWelcomeEmail, sendCocoWelcomeEmail } = require("./email.service");
 const { createCoco } = require("./coco.service");
+const queueService = require("./queue.service");
 
 const processCompanyExcel = async (uploadId, filePath) => {
   try {
@@ -150,6 +151,7 @@ const processShortlistExcel = async (uploadId, filePath, companyId) => {
 
       await Company.findByIdAndUpdate(companyId, { $addToSet: { shortlistedStudents: student._id } });
       await Student.findByIdAndUpdate(student._id, { $addToSet: { shortlistedCompanies: companyId } });
+      await queueService.ensureShortlistedStudentInQueue(student._id, companyId);
       existingIds.add(student._id.toString());
       successCount++;
     }

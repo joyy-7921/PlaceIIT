@@ -645,10 +645,9 @@ const uploadStudentsToRound = async (req, res) => {
         continue;
       }
 
-      // Create or update queue entry
-      let queueEntry = await Queue.findOne({ studentId: student._id, companyId });
+      const roundNameStr = round.roundName || `Round ${round.roundNumber}`;
+      let queueEntry = await Queue.findOne({ studentId: student._id, companyId, round: roundNameStr });
       if (queueEntry) {
-        queueEntry.roundId = round._id;
         queueEntry.status = "not_joined";
         await queueEntry.save();
       } else {
@@ -656,6 +655,7 @@ const uploadStudentsToRound = async (req, res) => {
           studentId: student._id,
           companyId,
           roundId: round._id,
+          round: roundNameStr,
           status: "not_joined",
         });
       }
@@ -807,6 +807,11 @@ const addStudentToCompany = async (req, res) => {
     await Student.findByIdAndUpdate(studentId, {
       $addToSet: { shortlistedCompanies: companyId },
     });
+    try {
+      await queueService.ensureShortlistedStudentInQueue(studentId, companyId);
+    } catch (err) {
+      console.error("Error ensuring student in queue:", err);
+    }
 
     res.json({ message: `${student.name} added to ${company.name} successfully` });
   } catch (err) {
@@ -875,17 +880,20 @@ const promoteStudentsViaExcel = async (req, res) => {
         });
       }
 
-      // Update queue entry to point to the next round
-      if (queueEntry) {
-        queueEntry.roundId = nextRoundDoc._id;
-        queueEntry.status = "in_queue";
-        await queueEntry.save();
+      // Find or create queue entry for next round
+      const nextRoundStr = nextRoundDoc.roundName || `Round ${nextRoundDoc.roundNumber}`;
+      let nextRoundQueueEntry = await Queue.findOne({ studentId: student._id, companyId, round: nextRoundStr });
+
+      if (nextRoundQueueEntry) {
+        nextRoundQueueEntry.status = "not_joined";
+        await nextRoundQueueEntry.save();
       } else {
         await Queue.create({
           studentId: student._id,
           companyId,
           roundId: nextRoundDoc._id,
-          status: "in_queue",
+          round: nextRoundStr,
+          status: "not_joined",
         });
       }
 

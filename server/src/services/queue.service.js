@@ -440,6 +440,38 @@ const getPendingRequests = async (companyId) => {
     .sort({ joinedAt: 1 });
 };
 
+const ensureShortlistedStudentInQueue = async (studentId, companyId) => {
+  let activeRound = await InterviewRound.findOne({ companyId, roundNumber: 1 });
+  if (!activeRound) {
+    activeRound = await InterviewRound.create({
+      companyId,
+      roundNumber: 1,
+      roundName: "Round 1",
+    });
+  }
+
+  let entry = await Queue.findOne({ studentId, companyId, round: "Round 1" });
+  if (entry) {
+    return entry;
+  }
+
+  const lastEntry = await Queue.findOne({
+    companyId,
+    roundId: activeRound._id,
+    status: { $in: [STUDENT_STATUS.IN_QUEUE, STUDENT_STATUS.IN_INTERVIEW] },
+  }).sort({ position: -1 });
+
+  return await Queue.create({
+    studentId,
+    companyId,
+    roundId: activeRound._id,
+    round: "Round 1",
+    status: STUDENT_STATUS.NOT_JOINED,
+    position: (lastEntry?.position || 0) + 1,
+    isWalkIn: false,
+  });
+};
+
 module.exports = {
   joinQueue,
   switchAndJoin,
@@ -451,6 +483,7 @@ module.exports = {
   rejectQueueRequest,
   hasActiveQueue,
   hasInterviewHistoryForCompany,
+  ensureShortlistedStudentInQueue,
   ACTIVE_STATUSES,
   TERMINAL_STATUSES,
 };

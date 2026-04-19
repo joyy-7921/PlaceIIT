@@ -996,7 +996,7 @@ export function CoCoHomePage({ companyName, onRoundTracking }: CoCoHomePageProps
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center text-lg">
               <Users className="h-5 w-5 mr-2 text-green-600" />
-              Shortlisted Students
+              Students List
             </CardTitle>
             <Dialog open={isAddQueueOpen} onOpenChange={setIsAddQueueOpen}>
               <DialogTrigger asChild>

@@ -13,6 +13,7 @@ const Apc = require("../models/Apc.model");
 const DriveState = require("../models/DriveState.model");
 const Notification = require("../models/Notification.model");
 const { SOCKET_EVENTS } = require("../utils/constants");
+const queueService = require("../services/queue.service");
 
 const emitStatsUpdate = async () => {
   try {
@@ -544,6 +545,14 @@ const shortlistStudents = async (req, res) => {
       { _id: { $in: studentIds } },
       { $addToSet: { shortlistedCompanies: companyId } }
     );
+
+    for (const studentId of studentIds) {
+      try {
+        await queueService.ensureShortlistedStudentInQueue(studentId, companyId);
+      } catch (err) {
+        console.error("Error ensuring student in queue:", err);
+      }
+    }
 
     res.json({
       message: `${students.length} student(s) shortlisted successfully`,
