@@ -249,13 +249,17 @@ const leaveQueue = async (studentId, companyId, round = "Round 1") => {
     position: entry.position,
     round: entry.round,
     roundId: entry.roundId,
+    isWalkIn: entry.isWalkIn,
   }));
 
-  // Soft-exit: set status to EXITED instead of deleting, so completed entries for prior rounds survive
-  await Queue.updateMany(
-    { _id: { $in: affectedScopes.map((entry) => entry.id) } },
-    { $set: { status: STUDENT_STATUS.EXITED, completedAt: new Date() } }
-  );
+  // Soft-exit: walk-ins exit forever, shortlisted revert to NOT_JOINED
+  for (const item of affectedScopes) {
+    if (item.isWalkIn) {
+      await Queue.updateOne({ _id: item.id }, { $set: { status: STUDENT_STATUS.EXITED, completedAt: new Date() } });
+    } else {
+      await Queue.updateOne({ _id: item.id }, { $set: { status: STUDENT_STATUS.NOT_JOINED, position: null, completedAt: null } });
+    }
+  }
 
   for (const removedEntry of affectedScopes) {
     await recalculateQueuePositions(
